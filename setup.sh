@@ -1,6 +1,22 @@
 #!/bin/bash
 set -euo pipefail
 
+# ========================================
+# 🧠 AGUARDAR APT (evita erro de lock)
+# ========================================
+
+echo "🔒 Verificando se o apt está ocupado..."
+
+while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 \
+   || fuser /var/lib/apt/lists/lock >/dev/null 2>&1 \
+   || fuser /var/cache/apt/archives/lock >/dev/null 2>&1
+do
+  echo "⏳ Aguardando apt liberar..."
+  sleep 3
+done
+
+echo "✅ apt liberado, continuando..."
+
 clear || true
 
 echo "========================================"
