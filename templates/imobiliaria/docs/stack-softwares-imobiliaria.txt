@@ -1,0 +1,292 @@
+========================================
+STACK COMPLETA - SISTEMA IMOBILIÁRIO COM IA
+TEMPLATE GENÉRICO E REPLICÁVEL
+========================================
+
+OBJETIVO:
+Sistema completo para imobiliárias com atendimento por IA no WhatsApp, memória de lead, CRM visual, follow-up automático, base de conhecimento e entrega de lead qualificado para corretor.
+
+
+========================================
+1. INFRAESTRUTURA
+========================================
+
+VPS / CLOUD
+- DigitalOcean ou similar
+- Pago
+- Recomendado: 1 VPS por cliente, se vender ambiente dedicado
+
+DOCKER
+- Gratuito
+- Usado para subir n8n, WAHA e serviços auxiliares
+
+N8N SELF-HOSTED
+- Gratuito
+- Cérebro das automações
+- Onde ficam os workflows de atendimento e follow-up
+
+WAHA
+- Gratuito/self-hosted
+- Responsável pela conexão com WhatsApp
+
+OPENAI
+- Pago conforme uso
+- Modelo recomendado: gpt-4o-mini
+- Usado para classificação, SDR, respostas, filtros e extrações
+
+SUPABASE
+- Pago em produção
+- Banco de dados / CRM / memória / base de conhecimento
+- Recomendado: 1 Supabase por cliente
+
+NEXT.JS
+- Gratuito
+- Framework do CRM visual
+
+VERCEL
+- Gratuito/pago
+- Hospedagem do CRM visual
+
+DOMÍNIO / DNS
+- Hostinger ou similar
+- Pago
+- Usado para domínio do CRM, site ou subdomínio do cliente
+
+TELEGRAM
+- Gratuito
+- Alertas internos para corretor, gerente ou suporte técnico
+
+
+========================================
+2. FUNCIONALIDADES DO SISTEMA
+========================================
+
+- Atendimento automático via WhatsApp
+- IA SDR pré-vendedora
+- Memória de lead
+- CRM visual integrado
+- Follow-up automático de 2h e 24h
+- Sistema anti-ban para follow-up
+- Base de conhecimento da imobiliária
+- Busca inteligente de imóveis no site/sitemap
+- Validação de cidade atendida
+- LGPD automático
+- Trava de corretor: só encaminha lead quando fizer sentido
+- Entrega de lead qualificado para corretor
+- Alertas por Telegram
+- Painel CRM em Next.js/Vercel
+
+
+========================================
+3. ARQUITETURA FINAL
+========================================
+
+WhatsApp do cliente
+↓
+WAHA
+↓
+n8n
+↓
+OpenAI + Supabase
+↓
+Resposta para cliente / alerta para corretor / CRM visual
+
+
+========================================
+4. ARQUIVOS DO TEMPLATE
+========================================
+
+1. Workflow atendimento:
+   TEMPLATE_V4_Imobiliaria_Atendimento_LIMPO.json
+
+2. Workflow follow-up:
+   TEMPLATE_V4_Imobiliaria_FollowUP_LIMPO.json
+
+3. SQL base de conhecimento:
+   Supabase_Base_Conhecimento_Imobiliaria_TEMPLATE.sql
+
+4. SQL follow-up:
+   Supabase_Followup_Imobiliaria_TEMPLATE.sql
+
+5. Checklist de implantação:
+   Checklist_Basic_IMOBILIARIA_TEMPLATE.txt
+
+6. Stack de softwares:
+   Stack_Softwares_IMOBILIARIA_TEMPLATE.txt
+
+
+========================================
+5. CONFIGURAÇÃO PRINCIPAL NO WORKFLOW
+========================================
+
+No workflow de atendimento, editar o node:
+
+Config Cliente
+
+Campos principais:
+
+cliente_id: "CLIENTE_IMOBILIARIA_001"
+imobiliaria: "NOME_DA_IMOBILIARIA"
+cidade_principal: "CIDADE_ATENDIDA"
+cidades_aceitas: ["CIDADE_ATENDIDA", "CIDADE_VIZINHA"]
+waha_url: "http://waha:3000"
+session: "default"
+waha_api_key: "SUA_API_KEY_WAHA"
+supabase_url: "SUA_SUPABASE_URL"
+supabase_anon_key: "SUA_SUPABASE_ANON_KEY"
+site_imobiliaria: "https://site-da-imobiliaria.com.br"
+telegram_enzo: "SEU_CHAT_ID_TELEGRAM"
+telegram_gerente: "CHAT_ID_GERENTE"
+telegram_corretor: "CHAT_ID_CORRETOR"
+telefone_corretor: "55DDDNUMERODOCORRETOR"
+
+
+No workflow de follow-up, editar o node:
+
+Config FollowUp
+
+Campos principais:
+
+imobiliaria: "NOME_DA_IMOBILIARIA"
+supabase_url: "SUA_SUPABASE_URL"
+supabase_anon_key: "SUA_SUPABASE_ANON_KEY"
+waha_url: "http://waha:3000"
+session: "default"
+waha_api_key: "SUA_API_KEY_WAHA"
+timezone: "America/Asuncion"
+
+
+========================================
+6. MÓDULO VERCEL + NEXT.JS — CRM IMOBILIÁRIO
+========================================
+
+OBJETIVO:
+Subir um CRM visual exclusivo para cada imobiliária usando Next.js + Vercel.
+
+O CRM serve para:
+- visualizar leads
+- acompanhar status
+- ver origem dos contatos
+- consultar score/temperatura
+- acompanhar imóveis de interesse
+- organizar atendimento da equipe
+
+
+ESTRUTURA REPLICÁVEL:
+
+Para cada cliente:
+
+1. Duplicar o projeto CRM
+2. Criar Supabase exclusivo
+3. Configurar .env.local
+4. Subir na Vercel
+5. Configurar variáveis na Vercel
+6. Conectar domínio ou subdomínio
+7. Testar login
+8. Entregar link ao cliente
+
+
+ARQUIVO .env.local:
+
+NEXT_PUBLIC_SUPABASE_URL=https://SEU_PROJECT_REF.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=SUA_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY=SUA_SERVICE_ROLE_KEY
+
+NEXT_PUBLIC_CLIENTE_NOME=NOME_DA_IMOBILIARIA
+NEXT_PUBLIC_CLIENTE_CIDADE=CIDADE_ATENDIDA
+
+CRM_LOGIN_EMAIL=EMAIL_DO_CLIENTE
+CRM_LOGIN_PASSWORD=SENHA_DO_CLIENTE
+
+
+VARIÁVEIS NA VERCEL:
+
+Vercel
+↓
+Project
+↓
+Settings
+↓
+Environment Variables
+
+Adicionar as mesmas variáveis do .env.local.
+Depois fazer Redeploy.
+
+
+DEPLOY VIA GITHUB:
+
+1. Subir CRM para repositório GitHub
+2. Importar projeto na Vercel
+3. Configurar variáveis
+4. Deploy
+
+
+DEPLOY VIA VERCEL CLI:
+
+npm install -g vercel
+
+Dentro da pasta do CRM:
+
+vercel
+
+Para produção:
+
+vercel --prod
+
+
+DOMÍNIO / SUBDOMÍNIO:
+
+Exemplos:
+
+crm.nomeimobiliaria.com.br
+painel.nomeimobiliaria.com.br
+app.nomeimobiliaria.com.br
+
+Na Vercel:
+
+Project
+↓
+Settings
+↓
+Domains
+↓
+Add Domain
+
+Na Hostinger/DNS:
+
+Adicionar CNAME:
+
+crm → cname.vercel-dns.com
+
+
+REGRA DE SEGURANÇA:
+
+Nunca colocar service_role key no front-end.
+Pode usar service_role apenas no backend/API routes.
+Nunca expor no navegador.
+Nunca colocar no GitHub público.
+
+No front-end usar:
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+No backend/API routes usar:
+SUPABASE_SERVICE_ROLE_KEY
+
+
+========================================
+7. FRASE DE VENDA
+========================================
+
+"Além da IA atender no WhatsApp, você recebe um painel exclusivo para acompanhar leads, status, origem, interesse e oportunidades em tempo real."
+
+
+========================================
+8. RESUMO DO PRODUTO
+========================================
+
+Sistema completo de atendimento, qualificação e conversão de leads com IA + CRM integrado.
+
+A IA atende, entende o cliente, organiza os dados e entrega apenas leads prontos para fechamento.
+
+Não é só um bot de WhatsApp. É uma estrutura de atendimento, pré-venda e CRM para imobiliárias.

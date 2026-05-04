@@ -1,0 +1,15 @@
+{
+  "id": "imobiliaria",
+  "nome": "Imobiliária",
+  "tipo": "template",
+  "descricao": "Atendimento SDR IA com memória, base de conhecimento, busca inteligente, trava de corretor e follow-up anti-ban.",
+  "workflows_dir": "workflows",
+  "sql_dir": "sql",
+  "docs_dir": "docs",
+  "config": {
+    "usa_supabase_anon_key": true,
+    "usa_openai_credential_no_n8n": true,
+    "usa_waha": true,
+    "workflows_config_client": 2
+  }
+}
