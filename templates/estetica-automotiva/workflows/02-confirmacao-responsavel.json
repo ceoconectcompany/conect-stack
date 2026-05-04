@@ -1,5 +1,5 @@
 {
-  "name": "02 - AUTOMOTIVO - Confirmação Responsável Supabase TEMPLATE",
+  "name": "02 - AUTOMOTIVO - Confirmação Responsável Supabase TEMPLATE - 10000% Final",
   "nodes": [
     {
       "parameters": {
@@ -35,7 +35,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// ===================================================\n// CONFIG CLIENTE — TEMPLATE GENÉRICO PARA VENDA\n// ===================================================\nconst config = {\n  empresa: {\n    nome: \"NOME_DO_CLIENTE\",\n    cidade: \"CIDADE_DO_CLIENTE\",\n    telefone_responsavel: \"55DDDNUMERO\",\n    waha_base_url: \"http://IP_DA_VPS:3000\",\n    waha_api_key: \"SUA_WAHA_API_KEY\",\n    session: \"default\"\n  },\n\n  supabase: {\n    url: \"https://SEU_PROJECT_REF.supabase.co\",\n    service_role_key: \"SUA_SUPABASE_SERVICE_ROLE_KEY\"\n  },\n\n  atendimento: {\n    timezone: \"America/Campo_Grande\",\n    mensagem_resposta_invalida: \"Resposta não entendida. Responda SIM ou NÃO, disponível DD/MM às HH:MM\",\n    mensagem_sem_pendente: \"Não encontrei nenhum agendamento pendente para confirmar.\"\n  }\n};\n\nreturn [{ json: { raw: $json, config } }];"
+        "jsCode": "// ===================================================\n// CONFIG CLIENTE — TEMPLATE GENÉRICO PARA VENDA\n// ===================================================\nconst config = {\n  empresa: {\n    nome: \"NOME_DO_CLIENTE\",\n    cidade: \"CIDADE_DO_CLIENTE\",\n    telefone_responsavel: \"55DDDNUMERO\",\n    waha_base_url: \"http://IP_DA_VPS:3000\",\n    waha_api_key: \"SUA_WAHA_API_KEY\",\n    session: \"default\"\n  },\n\n  supabase: {\n    url: \"https://SEU_PROJECT_REF.supabase.co\",\n    service_role_key: \"SUA_SUPABASE_SERVICE_ROLE_KEY\"\n  },\n\n  atendimento: {\n    timezone: \"America/Campo_Grande\",\n    mensagem_resposta_invalida: \"Resposta não entendida. Responda com ID + confirmação. Ex: ID 123 SIM ou ID 123 NÃO, disponível 10/05 às 16:00\",\n    mensagem_sem_pendente: \"Não encontrei agendamento pendente com esse ID.\",\n    mensagem_sem_id: \"Para evitar conflito, responda incluindo o ID do agendamento. Ex: ID 123 SIM ou ID 123 NÃO, disponível 10/05 às 16:00\"\n  }\n};\n\nreturn [{ json: { raw: $json, config } }];"
       },
       "id": "0fc4e148-22fe-44af-b07a-ec08300443fa",
       "name": "01 - CONFIG CLIENTE",
@@ -95,7 +95,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ $json.config.supabase.url + '/rest/v1/agendamentos?status=eq.PENDENTE_CONFIRMACAO_RESPONSAVEL&order=created_at.desc&limit=1&select=*' }}",
+        "url": "={{ $json.config.supabase.url + '/rest/v1/agendamentos?id=eq.' + encodeURIComponent($json.resposta_responsavel.agendamento_id) + '&status=eq.PENDENTE_CONFIRMACAO_RESPONSAVEL&select=*' }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -120,17 +120,17 @@
         "options": {}
       },
       "id": "b2850692-f26b-44b8-977d-54c61961021c",
-      "name": "04 - Supabase Buscar Pendente",
+      "name": "04B - Supabase Buscar Pendente por ID",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -80,
-        -60
+        440,
+        -120
       ]
     },
     {
       "parameters": {
-        "jsCode": "const previous = $item(0).$node[\"03 - IF É o Responsável?\"].json;\nconst rows = Array.isArray($json) ? $json : [];\nconst agendamento = rows[0] || null;\nreturn [{ json: { ...previous, agendamento } }];"
+        "jsCode": "const previous = $item(0).$node[\"04A - IF Resposta Tem ID?\"].json;\nconst rows = Array.isArray($json) ? $json : [];\nconst agendamento = rows[0] || null;\nreturn [{ json: { ...previous, agendamento } }];"
       },
       "id": "5c522d06-42f1-4df1-8247-e601f1bc0a10",
       "name": "05 - Preparar Pendente",
@@ -188,11 +188,11 @@
                 },
                 "conditions": [
                   {
-                    "leftValue": "={{ $json.incoming.body.toLowerCase().trim() }}",
-                    "rightValue": "sim",
+                    "leftValue": "={{ $json.resposta_responsavel.decisao }}",
+                    "rightValue": "CONFIRMAR",
                     "operator": {
                       "type": "string",
-                      "operation": "startsWith"
+                      "operation": "equals"
                     }
                   }
                 ],
@@ -209,11 +209,11 @@
                 },
                 "conditions": [
                   {
-                    "leftValue": "={{ $json.incoming.body.toLowerCase().trim() }}",
-                    "rightValue": "não",
+                    "leftValue": "={{ $json.resposta_responsavel.decisao }}",
+                    "rightValue": "NEGAR_SUGERIR",
                     "operator": {
                       "type": "string",
-                      "operation": "startsWith"
+                      "operation": "equals"
                     }
                   }
                 ],
@@ -230,11 +230,11 @@
                 },
                 "conditions": [
                   {
-                    "leftValue": "={{ $json.incoming.body.toLowerCase().trim() }}",
-                    "rightValue": "nao",
+                    "leftValue": "={{ $json.resposta_responsavel.decisao }}",
+                    "rightValue": "INVALIDA",
                     "operator": {
                       "type": "string",
-                      "operation": "startsWith"
+                      "operation": "equals"
                     }
                   }
                 ],
@@ -321,7 +321,7 @@
     },
     {
       "parameters": {
-        "jsCode": "function parseDateTime(message, timezone) {\n  const m = String(message || \"\").toLowerCase();\n  let date = \"\";\n  let time = \"\";\n  const dmatch = m.match(/(\\d{1,2})[\\/\\-](\\d{1,2})(?:[\\/\\-](\\d{2,4}))?/);\n  if (dmatch) {\n    const dd = dmatch[1].padStart(2, \"0\");\n    const mm = dmatch[2].padStart(2, \"0\");\n    const yy = dmatch[3] ? (dmatch[3].length === 2 ? \"20\" + dmatch[3] : dmatch[3]) : String(new Date().getFullYear());\n    date = `${dd}/${mm}/${yy}`;\n  } else if (m.includes(\"amanhã\") || m.includes(\"amanha\")) {\n    const d = new Date(); d.setDate(d.getDate() + 1);\n    date = d.toLocaleDateString(\"pt-BR\", { timeZone: timezone });\n  } else if (m.includes(\"hoje\")) {\n    const d = new Date();\n    date = d.toLocaleDateString(\"pt-BR\", { timeZone: timezone });\n  }\n\n  const tmatch = m.match(/(?:às|as|por volta das|horário|horario)?\\s*(\\d{1,2})(?:[:h](\\d{2}))?\\s*(?:h|hrs|horas)?/);\n  if (tmatch) {\n    const hh = tmatch[1].padStart(2, \"0\");\n    const mm = (tmatch[2] || \"00\").padStart(2, \"0\");\n    const hnum = Number(hh);\n    if (hnum >= 6 && hnum <= 22) time = `${hh}:${mm}`;\n  }\n  return { date, time };\n}\n\nconst ag = $json.agendamento;\nconst dt = parseDateTime($json.incoming.body, $json.config.atendimento.timezone);\nconst fallback = String($json.incoming.body || \"\").replace(/^não,?/i, \"\").replace(/^nao,?/i, \"\").trim();\nconst sugestao_texto = dt.date && dt.time ? `${dt.date} às ${dt.time}` : fallback;\n\nconst body = {\n  status: \"AGUARDANDO_CLIENTE_ACEITAR_SUGESTAO\",\n  sugestao_data: dt.date || null,\n  sugestao_hora: dt.time || null,\n  sugestao_texto,\n  resposta_responsavel: $json.incoming.body,\n  updated_at: new Date().toISOString()\n};\n\nconst text = `O horário que você escolheu não está disponível.\n\nO horário mais próximo disponível é: ${sugestao_texto}\n\nPosso confirmar esse novo horário para você?\nResponda SIM para confirmar.`;\n\nreturn [{ json: { ...$json, supabase_body: body, destino: \"cliente\", text } }];"
+        "jsCode": "function parseDateTime(message, timezone) {\n  const m = String(message || \"\").toLowerCase();\n  let date = \"\";\n  let time = \"\";\n\n  const dmatch = m.match(/(\\d{1,2})[\\/\\-](\\d{1,2})(?:[\\/\\-](\\d{2,4}))?/);\n  if (dmatch) {\n    const dd = dmatch[1].padStart(2, \"0\");\n    const mm = dmatch[2].padStart(2, \"0\");\n    const yy = dmatch[3] ? (dmatch[3].length === 2 ? \"20\" + dmatch[3] : dmatch[3]) : String(new Date().getFullYear());\n    date = `${dd}/${mm}/${yy}`;\n  } else if (m.includes(\"amanhã\") || m.includes(\"amanha\")) {\n    const d = new Date();\n    d.setDate(d.getDate() + 1);\n    date = d.toLocaleDateString(\"pt-BR\", { timeZone: timezone });\n  } else if (m.includes(\"hoje\")) {\n    const d = new Date();\n    date = d.toLocaleDateString(\"pt-BR\", { timeZone: timezone });\n  }\n\n  const timeMatches = [...m.matchAll(/(?:às|as|por volta das|horário|horario)?\\s*(\\d{1,2})(?:[:h](\\d{2}))?\\s*(?:h|hrs|horas)?/g)];\n  for (const tm of timeMatches) {\n    const hh = tm[1].padStart(2, \"0\");\n    const mm = (tm[2] || \"00\").padStart(2, \"0\");\n    const hnum = Number(hh);\n    if (hnum >= 6 && hnum <= 22) {\n      time = `${hh}:${mm}`;\n      break;\n    }\n  }\n\n  return { date, time };\n}\n\nfunction cleanSuggestionText(text) {\n  return String(text || \"\")\n    .replace(/^\\s*(não|nao|n)\\b\\s*[,\\-:;]?\\s*/i, \"\")\n    .replace(/^\\s*(disponível|disponivel)\\s*[,\\-:;]?\\s*/i, \"\")\n    .trim();\n}\n\nconst ag = $json.agendamento;\nconst textoLimpo = $json.resposta_responsavel?.texto_limpo || $json.resposta_responsavel?.texto || \"\";\nconst dt = parseDateTime(textoLimpo, $json.config.atendimento.timezone);\n\nlet sugestao_texto = cleanSuggestionText(textoLimpo);\nif (dt.date && dt.time) sugestao_texto = `${dt.date} às ${dt.time}`;\nelse if (!sugestao_texto) sugestao_texto = \"novo horário informado pelo responsável\";\n\nconst body = {\n  status: \"AGUARDANDO_CLIENTE_ACEITAR_SUGESTAO\",\n  sugestao_data: dt.date || null,\n  sugestao_hora: dt.time || null,\n  sugestao_texto,\n  resposta_responsavel: $json.resposta_responsavel.texto,\n  updated_at: new Date().toISOString()\n};\n\nconst text = `O horário que você escolheu não está disponível.\n\nO horário mais próximo disponível é: ${sugestao_texto}\n\nPosso confirmar esse novo horário para você?\nResponda SIM para confirmar.`;\n\nreturn [{ json: { ...$json, supabase_body: body, destino: \"cliente\", text } }];"
       },
       "id": "38032d8a-cbc6-4038-a89c-12e3e6f90135",
       "name": "08B - Preparar Sugestão",
@@ -481,6 +481,65 @@
         2300,
         -80
       ]
+    },
+    {
+      "parameters": {
+        "jsCode": "function normalizeText(value) {\n  return String(value || \"\")\n    .toLowerCase()\n    .normalize(\"NFD\")\n    .replace(/[\\u0300-\\u036f]/g, \"\")\n    .trim();\n}\n\nfunction extractAgendamentoId(message) {\n  const text = String(message || \"\").trim();\n  const byLabel = text.match(/(?:^|\\b)(?:id|agendamento|agenda|#)\\s*[:\\-]?\\s*([a-zA-Z0-9_-]{1,80})/i);\n  if (byLabel) return byLabel[1];\n\n  const uuid = text.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);\n  if (uuid) return uuid[0];\n\n  const firstNumber = text.match(/^\\s*(\\d{1,20})\\b/);\n  if (firstNumber) return firstNumber[1];\n\n  return \"\";\n}\n\nfunction stripIdFromMessage(message, agendamentoId) {\n  let text = String(message || \"\").trim();\n  if (agendamentoId) {\n    const escaped = String(agendamentoId).replace(/[.*+?^${}()|[\\]\\\\]/g, \"\\\\$&\");\n    text = text\n      .replace(new RegExp(`(?:^|\\\\b)(?:id|agendamento|agenda|#)\\\\s*[:\\\\-]?\\\\s*${escaped}`, \"i\"), \" \")\n      .replace(new RegExp(`^\\\\s*${escaped}\\\\b`, \"i\"), \" \");\n  }\n  return text.replace(/^\\s*[,\\-:;]+\\s*/, \"\").trim();\n}\n\nfunction decide(cleanMessage) {\n  const n = normalizeText(cleanMessage);\n\n  const negativePatterns = [\n    /^(nao|n)\\b/, /\\bnao da\\b/, /\\bnao pode\\b/, /\\bsem vaga\\b/, /\\bindisponivel\\b/, /\\bocupado\\b/, /\\boutro horario\\b/, /\\bsugere\\b/\n  ];\n  if (negativePatterns.some(rx => rx.test(n))) return \"NEGAR_SUGERIR\";\n\n  const positivePatterns = [\n    /^(sim|s)\\b/, /\\bsim\\b/, /\\bok\\b/, /\\bokay\\b/, /\\bpode\\b/, /\\bpode ser\\b/, /\\bconfirmado\\b/, /\\bconfirma\\b/, /\\bconfirmar\\b/, /\\bfechado\\b/, /\\bfecha\\b/, /\\bbeleza\\b/, /\\bblz\\b/, /\\bcerto\\b/, /\\bta bom\\b/, /\\btudo certo\\b/, /\\bmanda\\b/, /\\bmanda bala\\b/\n  ];\n  if (positivePatterns.some(rx => rx.test(n))) return \"CONFIRMAR\";\n\n  return \"INVALIDA\";\n}\n\nconst message = $json.incoming?.body || \"\";\nconst agendamento_id = extractAgendamentoId(message);\nconst texto_limpo = stripIdFromMessage(message, agendamento_id);\nconst decisao = decide(texto_limpo);\n\nreturn [{\n  json: {\n    ...$json,\n    resposta_responsavel: {\n      texto: message,\n      texto_limpo,\n      agendamento_id,\n      decisao,\n      tem_id: Boolean(agendamento_id)\n    }\n  }\n}];"
+      },
+      "id": "parse-resp-owner-id-safe",
+      "name": "04 - Interpretar Resposta com ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "tem-id",
+              "leftValue": "={{ $json.resposta_responsavel.agendamento_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-resp-tem-id-safe",
+      "name": "04A - IF Resposta Tem ID?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        180,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, destino: \"responsavel\", text: $json.config.atendimento.mensagem_sem_id } }];"
+      },
+      "id": "sem-id-msg-safe",
+      "name": "04C - Responder ID Obrigatório",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        180
+      ]
     }
   ],
   "connections": {
@@ -521,7 +580,7 @@
       "main": [
         [
           {
-            "node": "04 - Supabase Buscar Pendente",
+            "node": "04 - Interpretar Resposta com ID",
             "type": "main",
             "index": 0
           }
@@ -529,17 +588,6 @@
         [
           {
             "node": "04B - Não é Responsável",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "04 - Supabase Buscar Pendente": {
-      "main": [
-        [
-          {
-            "node": "05 - Preparar Pendente",
             "type": "main",
             "index": 0
           }
@@ -593,7 +641,7 @@
         ],
         [
           {
-            "node": "08B - Preparar Sugestão",
+            "node": "08C - Resposta Inválida",
             "type": "main",
             "index": 0
           }
@@ -715,6 +763,57 @@
         [
           {
             "node": "13 - Responder Webhook OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 - Interpretar Resposta com ID": {
+      "main": [
+        [
+          {
+            "node": "04A - IF Resposta Tem ID?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04A - IF Resposta Tem ID?": {
+      "main": [
+        [
+          {
+            "node": "04B - Supabase Buscar Pendente por ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "04C - Responder ID Obrigatório",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04B - Supabase Buscar Pendente por ID": {
+      "main": [
+        [
+          {
+            "node": "05 - Preparar Pendente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04C - Responder ID Obrigatório": {
+      "main": [
+        [
+          {
+            "node": "11 - Preparar Envio WAHA",
             "type": "main",
             "index": 0
           }
