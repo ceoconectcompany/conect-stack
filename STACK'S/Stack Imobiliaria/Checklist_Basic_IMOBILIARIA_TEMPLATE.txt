@@ -1,0 +1,76 @@
+========================================
+CHECKLIST BASIC - IMOBILIÁRIA IA + CRM
+TEMPLATE GENÉRICO DE IMPLANTAÇÃO
+========================================
+
+INFRA / VPS
+[ ] VPS criada
+[ ] SSH funcionando
+[ ] setup.sh rodado
+[ ] Docker instalado
+[ ] n8n acessando
+[ ] WAHA acessando
+[ ] WhatsApp conectado no WAHA
+
+WORKFLOWS N8N
+[ ] Workflow Atendimento importado
+[ ] Workflow Follow-up importado
+[ ] Config Cliente preenchido
+[ ] Config FollowUp preenchido
+[ ] WAHA API Key configurada
+[ ] OpenAI configurada
+[ ] Telegram configurado ou placeholders mantidos
+[ ] Workflows ativados
+
+SUPABASE
+[ ] Supabase criado
+[ ] SQL principal do CRM rodado
+[ ] SQL base de conhecimento rodado
+[ ] SQL follow-up rodado
+[ ] tabela leads_imobiliaria criada
+[ ] tabela mensagens_imobiliaria criada
+[ ] tabela leads_memoria_imobiliaria criada
+[ ] tabela followups_imobiliaria criada
+[ ] tabela base_conhecimento_imobiliaria criada
+[ ] RLS configurado conforme estratégia do projeto
+[ ] Policies INSERT/SELECT criadas quando necessário
+[ ] Project URL copiada
+[ ] Anon key copiada
+[ ] Service role key guardada apenas para backend/API
+
+CRM NEXT.JS / VERCEL
+[ ] Projeto CRM duplicado
+[ ] .env.local configurado
+[ ] NEXT_PUBLIC_SUPABASE_URL configurado
+[ ] NEXT_PUBLIC_SUPABASE_ANON_KEY configurado
+[ ] SUPABASE_SERVICE_ROLE_KEY configurado apenas no backend/Vercel
+[ ] Login do CRM configurado
+[ ] CRM rodando localmente
+[ ] Projeto importado na Vercel
+[ ] Variáveis Vercel configuradas
+[ ] Deploy Vercel realizado
+[ ] Domínio/subdomínio conectado
+[ ] Login CRM funcionando
+[ ] Leads aparecendo no CRM
+
+TESTES
+[ ] Teste WhatsApp feito
+[ ] IA respondeu corretamente
+[ ] Lead salvo no Supabase
+[ ] Mensagem salva no Supabase
+[ ] Lead apareceu no CRM
+[ ] Alerta Telegram enviado
+[ ] Follow-up 2h testado
+[ ] Follow-up 24h testado
+[ ] Busca inteligente de imóveis testada
+[ ] Base de conhecimento testada
+[ ] Trava de corretor testada
+
+ENTREGA AO CLIENTE
+[ ] Link do CRM entregue
+[ ] Login e senha entregues
+[ ] WhatsApp conectado validado
+[ ] Domínio funcionando
+[ ] Cliente orientado sobre uso básico
+[ ] Backup das chaves salvo em local seguro
+[ ] Template final salvo no pendrive/dev paste
