@@ -5,6 +5,9 @@ ROOT_DIR="/opt/conect-kit"
 REPO_URL="https://github.com/ceoconectcompany/conect-stack.git"
 N8N_CONTAINER="${N8N_CONTAINER:-n8n}"
 
+# Evita erro se o script apagar/atualizar a própria pasta enquanto você está dentro dela
+cd /tmp
+
 clear || true
 echo "========================================"
 echo "🚀 CONECT INSTALLER MODULAR"
@@ -24,20 +27,22 @@ need_cmd jq
 need_cmd openssl
 need_cmd curl
 
+echo "🔎 Preparando repositório..."
+
 if [ ! -d "$ROOT_DIR/.git" ]; then
   echo "📥 Clonando repositório em $ROOT_DIR..."
   rm -rf "$ROOT_DIR"
   git clone "$REPO_URL" "$ROOT_DIR"
 else
   echo "🔄 Atualizando repositório..."
-  cd "$ROOT_DIR"
-  git pull origin main
+  git -C "$ROOT_DIR" pull origin main
 fi
 
 cd "$ROOT_DIR"
 
 if [ ! -d "templates" ]; then
   echo "❌ Pasta templates/ não encontrada."
+  echo "Verifique se o repo tem: templates/NOME_DO_TEMPLATE/manifest.json"
   exit 1
 fi
 
@@ -70,6 +75,7 @@ if ! [[ "$escolha" =~ ^[0-9]+$ ]]; then
 fi
 
 idx=$((escolha-1))
+
 if [ "$idx" -lt 0 ] || [ "$idx" -ge "${#TEMPLATE_MANIFESTS[@]}" ]; then
   echo "❌ Opção inválida."
   exit 1
@@ -87,9 +93,16 @@ if [ ! -d "$WORKFLOWS_DIR" ]; then
   exit 1
 fi
 
+if ! command -v docker >/dev/null 2>&1; then
+  echo "❌ Docker não encontrado."
+  echo "Rode primeiro o setup da stack com Docker, n8n e WAHA."
+  exit 1
+fi
+
 if ! docker ps --format '{{.Names}}' | grep -qx "$N8N_CONTAINER"; then
   echo "❌ Container n8n não está rodando com nome '$N8N_CONTAINER'."
-  echo "Veja com: docker ps"
+  echo "Veja com:"
+  echo "docker ps"
   exit 1
 fi
 
@@ -100,6 +113,7 @@ echo ""
 echo "========================================"
 echo "📋 CONFIG CLIENTE — $TEMPLATE_NOME"
 echo "========================================"
+
 read -rp "Nome da empresa/cliente: " EMPRESA
 read -rp "Cidade principal: " CIDADE
 read -rp "Telefone responsável/corretor (55DDDNUMERO): " TELEFONE
@@ -123,11 +137,15 @@ else
 fi
 
 TMP_HOST="/tmp/conect-template-$TEMPLATE_ID-$$"
+
 rm -rf "$TMP_HOST"
 mkdir -p "$TMP_HOST/workflows"
+
 cp "$WORKFLOWS_DIR"/*.json "$TMP_HOST/workflows/"
 
-# Substituições genéricas para todos templates.
+echo ""
+echo "🧩 Aplicando Config Cliente nos workflows..."
+
 find "$TMP_HOST/workflows" -type f -name '*.json' -print0 | xargs -0 sed -i \
   -e "s|NOME_DO_CLIENTE|$EMPRESA|g" \
   -e "s|NOME_DA_IMOBILIARIA|$EMPRESA|g" \
@@ -139,7 +157,6 @@ find "$TMP_HOST/workflows" -type f -name '*.json' -print0 | xargs -0 sed -i \
   -e "s|SUA_WAHA_API_KEY|$WAHA_API_KEY|g" \
   -e "s|SUA_API_KEY_WAHA|$WAHA_API_KEY|g" \
   -e "s|http://IP_DA_VPS:3000|http://$IP:3000|g" \
-  -e "s|http://waha:3000|http://waha:3000|g" \
   -e "s|https://SEU_PROJECT_REF.supabase.co|$SUPA_URL|g" \
   -e "s|SUA_SUPABASE_URL|$SUPA_URL|g"
 
@@ -175,18 +192,27 @@ fi
 
 echo ""
 echo "🔎 Validando JSON dos workflows..."
+
 for file in "$TMP_HOST"/workflows/*.json; do
-  jq empty "$file" || { echo "❌ JSON inválido: $file"; exit 1; }
+  jq empty "$file" || {
+    echo "❌ JSON inválido: $file"
+    exit 1
+  }
 done
 
+echo ""
 echo "📤 Copiando workflows para o container n8n..."
+
 docker exec "$N8N_CONTAINER" sh -c 'rm -rf /tmp/conect-import && mkdir -p /tmp/conect-import'
 docker cp "$TMP_HOST/workflows/." "$N8N_CONTAINER:/tmp/conect-import/"
 
+echo ""
 echo "📥 Importando workflows no n8n..."
+
 for file in "$TMP_HOST"/workflows/*.json; do
   base=$(basename "$file")
   echo "➡️  Importando $base"
+
   docker exec -u node "$N8N_CONTAINER" n8n import:workflow --input="/tmp/conect-import/$base" || {
     echo "⚠️ Falhou ao importar $base. Veja logs acima."
   }
@@ -203,8 +229,10 @@ Supabase URL: $SUPA_URL
 INFO
 
 mkdir -p "$ROOT_DIR/clientes-instalados"
+
 SAFE_EMPRESA=$(echo "$EMPRESA" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-')
 cp "$TMP_HOST/CLIENTE-INSTALADO.txt" "$ROOT_DIR/clientes-instalados/${SAFE_EMPRESA}-${TEMPLATE_ID}.txt"
+
 rm -rf "$TMP_HOST"
 
 echo ""
@@ -213,8 +241,17 @@ echo "✅ TEMPLATE INSTALADO COM SUCESSO"
 echo "========================================"
 echo "Template: $TEMPLATE_NOME"
 echo "Cliente: $EMPRESA"
-echo "n8n: http://$IP:5678"
-echo "WAHA: http://$IP:3000"
-echo "WAHA API KEY: $WAHA_API_KEY"
+echo ""
+echo "🌐 n8n:"
+echo "http://$IP:5678"
+echo ""
+echo "📱 WAHA:"
+echo "http://$IP:3000"
+echo ""
+echo "🔐 WAHA API KEY:"
+echo "$WAHA_API_KEY"
+echo ""
+echo "📁 Registro salvo em:"
+echo "$ROOT_DIR/clientes-instalados/${SAFE_EMPRESA}-${TEMPLATE_ID}.txt"
 echo ""
 echo "📌 Próximo passo: abrir o n8n, conferir os workflows importados e ativar."
