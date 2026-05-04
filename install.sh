@@ -5,12 +5,12 @@ export DEBIAN_FRONTEND=noninteractive
 
 ROOT_DIR="${ROOT_DIR:-/opt/conect-stack}"
 REPO_URL="${REPO_URL:-https://github.com/ceoconectcompany/conect-stack.git}"
-N8N_CONTAINER="${N8N_CONTAINER:-conectstack-n8n-1}"
+N8N_CONTAINER="${N8N_CONTAINER:-conect-stack-n8n-1}"
 
 cd /tmp
 
 # ==============================
-# 🔥 DEPENDÊNCIAS (À PROVA DE BURRO)
+# 🔥 DEPENDÊNCIAS
 # ==============================
 apt update -y >/dev/null 2>&1 || true
 apt install -y git jq openssl curl figlet lolcat >/dev/null 2>&1 || true
@@ -28,7 +28,7 @@ fi
 # 🎨 UI
 # ==============================
 clear || true
-figlet -f slant "CONECT" | lolcat
+figlet -f slant "CONECT" | lolcat || true
 
 gum style \
   --border double \
@@ -53,9 +53,29 @@ fi
 cd "$ROOT_DIR"
 
 # ==============================
+# 🧪 VALIDAR N8N
+# ==============================
+if ! docker ps --format '{{.Names}}' | grep -qx "$N8N_CONTAINER"; then
+  echo "❌ Container n8n não encontrado: $N8N_CONTAINER"
+  echo "Containers disponíveis:"
+  docker ps --format ' - {{.Names}}'
+  exit 1
+fi
+
+# ==============================
 # 📦 TEMPLATE UI
 # ==============================
+if [ ! -d "templates" ]; then
+  echo "❌ Pasta templates não encontrada em $ROOT_DIR"
+  exit 1
+fi
+
 mapfile -t TEMPLATES < <(find templates -mindepth 2 -maxdepth 2 -name manifest.json | sort)
+
+if [ "${#TEMPLATES[@]}" -eq 0 ]; then
+  echo "❌ Nenhum manifest.json encontrado dentro de templates."
+  exit 1
+fi
 
 OPTIONS=()
 
@@ -78,11 +98,21 @@ for i in "${!OPTIONS[@]}"; do
   fi
 done
 
+if [ "$INDEX" -lt 0 ]; then
+  echo "❌ Nenhum template selecionado."
+  exit 1
+fi
+
 MANIFEST="${TEMPLATES[$INDEX]}"
 DIR="$(dirname "$MANIFEST")"
 ID=$(jq -r '.id' "$MANIFEST")
 NAME=$(jq -r '.nome' "$MANIFEST")
 WF_DIR="$DIR/workflows"
+
+if [ ! -d "$WF_DIR" ]; then
+  echo "❌ Pasta workflows não encontrada: $WF_DIR"
+  exit 1
+fi
 
 gum style --foreground 46 --bold "✅ Template: $NAME"
 
@@ -96,12 +126,24 @@ SUPA=$(gum input --placeholder "Supabase URL")
 
 if [ "$ID" = "imobiliaria" ]; then
   SUPA_KEY=$(gum input --password --placeholder "Supabase ANON")
+  OPENAI=$(gum input --password --placeholder "OpenAI Key")
 else
   SUPA_KEY=$(gum input --password --placeholder "Supabase SERVICE")
   OPENAI=$(gum input --password --placeholder "OpenAI Key")
 fi
 
-gum confirm "Confirmar?" || exit 1
+WAHA_KEY_DEFAULT=""
+if [ -f "$ROOT_DIR/.env" ]; then
+  WAHA_KEY_DEFAULT=$(grep '^WAHA_API_KEY=' "$ROOT_DIR/.env" | cut -d '=' -f2- || true)
+fi
+
+if [ -n "$WAHA_KEY_DEFAULT" ]; then
+  WAHA_KEY="$WAHA_KEY_DEFAULT"
+else
+  WAHA_KEY=$(gum input --password --placeholder "WAHA API KEY")
+fi
+
+gum confirm "Confirmar criação do cliente?" || exit 1
 
 # ==============================
 # 🔧 PROCESSO
@@ -112,12 +154,18 @@ mkdir -p "$TMP"
 
 cp "$WF_DIR"/*.json "$TMP"
 
-gum spin --spinner dot --title "Configurando..." -- sleep 1
+gum spin --spinner dot --title "Configurando workflows..." -- sleep 1
 
-sed -i "s|NOME_DO_CLIENTE|$EMPRESA|g" $TMP/*.json
-sed -i "s|CIDADE_DO_CLIENTE|$CIDADE|g" $TMP/*.json
-sed -i "s|55DDDNUMERO|$TEL|g" $TMP/*.json
-sed -i "s|SUA_SUPABASE_URL|$SUPA|g" $TMP/*.json
+sed -i "s|NOME_DO_CLIENTE|$EMPRESA|g" "$TMP"/*.json
+sed -i "s|CIDADE_DO_CLIENTE|$CIDADE|g" "$TMP"/*.json
+sed -i "s|55DDDNUMERO|$TEL|g" "$TMP"/*.json
+sed -i "s|55DDDNUMEROTESTE|$TEL|g" "$TMP"/*.json
+sed -i "s|SUA_SUPABASE_URL|$SUPA|g" "$TMP"/*.json
+sed -i "s|SUA_SUPABASE_KEY|$SUPA_KEY|g" "$TMP"/*.json
+sed -i "s|SUA_OPENAI_API_KEY|$OPENAI|g" "$TMP"/*.json
+sed -i "s|SUA_WAHA_API_KEY|$WAHA_KEY|g" "$TMP"/*.json
+sed -i "s|WAHA_API_KEY_AQUI|$WAHA_KEY|g" "$TMP"/*.json
+sed -i "s|123456|$WAHA_KEY|g" "$TMP"/*.json
 
 # ==============================
 # 🚀 IMPORTAÇÃO
@@ -125,25 +173,10 @@ sed -i "s|SUA_SUPABASE_URL|$SUPA|g" $TMP/*.json
 docker exec "$N8N_CONTAINER" sh -c "rm -rf /tmp/import && mkdir -p /tmp/import"
 docker cp "$TMP/." "$N8N_CONTAINER:/tmp/import/"
 
-for f in $TMP/*.json; do
-  base=$(basename $f)
+for f in "$TMP"/*.json; do
+  base=$(basename "$f")
   docker exec -u node "$N8N_CONTAINER" n8n import:workflow --input="/tmp/import/$base"
 done
-
-# ==============================
-# ✅ FINAL
-# ==============================
-figlet -f slant "PRONTO" | lolcat
-
-gum style \
-  --border double \
-  --border-foreground 46 \
-  --padding "1 3" \
-"🔥 CLIENTE CRIADO
-
-📦 $NAME
-👤 $EMPRESA
-🌐 http://$(curl -s ifconfig.me):5678"
 
 # ==============================
 # ⚡ COMANDO UNICO
@@ -157,3 +190,24 @@ bash install.sh
 EOF
 chmod +x /usr/local/bin/conect
 fi
+
+# ==============================
+# ✅ FINAL
+# ==============================
+IP=$(curl -s ifconfig.me || echo "IP_DA_VPS")
+
+figlet -f slant "PRONTO" | lolcat || true
+
+gum style \
+  --border double \
+  --border-foreground 46 \
+  --padding "1 3" \
+"🔥 CLIENTE CRIADO
+
+📦 Template: $NAME
+👤 Cliente: $EMPRESA
+📍 Cidade: $CIDADE
+📱 WhatsApp: $TEL
+
+🌐 n8n: http://$IP:5678
+📱 WAHA: http://$IP:3000"
