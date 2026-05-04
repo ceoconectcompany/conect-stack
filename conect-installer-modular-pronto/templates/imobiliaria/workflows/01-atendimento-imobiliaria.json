@@ -1,0 +1,2058 @@
+{
+  "name": "[TEMPLATE V4.0] Atendimento Imobiliária - SDR IA com Memória + Base + Trava de Corretor",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -4848,
+        1264
+      ],
+      "id": "f8f98371-8a9b-4680-a91b-497081f393bb",
+      "name": "Webhook"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2db2492b-3d6d-49d6-a23f-8b060c90af4a",
+              "name": "phone",
+              "value": "={{ $('Webhook').first().json.from || $('Webhook').first().json.body?.payload?.from || $('Webhook').first().json.payload?.from || $('Webhook').first().json.body?.from || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "b1c3633e-512f-4c5f-931a-ec1d53c0f02c",
+              "name": "message",
+              "value": "={{ $('Webhook').first().json.body || $('Webhook').first().json.body?.body || $('Webhook').first().json.payload?.body || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3600,
+        1248
+      ],
+      "id": "ec1d0168-ab27-45ac-b54d-77623ecc2d87",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "35041e1d-74c2-457c-b10d-3fe7cb9728d1",
+              "name": "city",
+              "value": "={{ $json.output[0].content[0].text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3008,
+        1248
+      ],
+      "id": "ed598086-dded-489d-ac34-b781668d3fb2",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ad7f70dd-49ea-44ec-8a90-31bf1bf3a1b8",
+              "leftValue": "={{ (() => { const cfg=$('Config Cliente').first().json; const detected=String($json.city || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase(); const cidades=cfg.cidades_aceitas || [cfg.cidade_principal || cfg.cidade]; return cidades.some(c => { const cc=String(c||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase(); return detected.includes(cc) || cc.includes(detected); }); })() }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -2160,
+        1248
+      ],
+      "id": "9a426a4c-8803-447c-a132-45fc01fdb2f0",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        624,
+        -384
+      ],
+      "id": "2e3b6d35-93b6-4db1-a944-2950accdd3e9",
+      "name": "Ler Site / Sitemap - Busca Inteligente",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=Extraia apenas o nome da cidade mencionada na mensagem do cliente.\n\nRegras:\n- Responda SOMENTE com o nome da cidade. Ex: Ponta Porã, Dourados, Pedro Juan Caballero.\n- Se a cidade vier abreviada ou sem acento, normalize para o nome correto quando possível.\n- Se não houver cidade, responda exatamente: NAO_INFORMADO\n- Não inclua frases, JSON ou explicação.\n\nMensagem: {{ $json.message }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.2,
+      "position": [
+        -3360,
+        1248
+      ],
+      "id": "b1057a03-c4fe-4845-9c1d-8b94259f1d7d",
+      "name": "Message a model"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($('Config Cliente').first().json.waha_url || 'http://waha:3000') + '/api/sendText' }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"X-Api-Key\": \"{{ $('Config Cliente').first().json.waha_api_key }}\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"session\": \"{{ $('Config Cliente').first().json.session }}\",\n  \"chatId\": \"{{ $('Edit Fields').first().json.phone }}\",\n  \"text\": \"{{ $('Salvar nome').item.json.client_name !== 'NAO_INFORMADO' ? $('Salvar nome').item.json.client_name + ', ' : '' }}perfeito! Já encaminhei seu atendimento para um corretor 🤝\\n\\nEnquanto isso, você quer:\\n1️⃣ Ver imóveis disponíveis\\n2️⃣ Agendar uma visita\\n3️⃣ Tirar dúvidas sobre documentação\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        336,
+        2864
+      ],
+      "id": "59025b70-ab08-481b-9385-88feeabb4c14",
+      "name": "HTTP Request3"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($('Config Cliente').first().json.waha_url || 'http://waha:3000') + '/api/sendText' }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"X-Api-Key\": \"{{ $('Config Cliente').first().json.waha_api_key }}\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"session\": \"{{ $('Config Cliente').first().json.session }}\",\n  \"chatId\": \"{{ $('Edit Fields').first().json.phone }}\",\n  \"text\": \"🚨 NOVO LEAD PRONTO PARA CORRETOR!\n\n📞 Cliente: {{ $('Edit Fields').first().json.phone }}\n💬 Mensagem: {{ $('Edit Fields').first().json.message }}\n🏠 Imóvel escolhido: {{ $('Normalizar Etapa do Lead').first().json.imovel_referencia || $('Normalizar Etapa do Lead').first().json.imovel_especifico }}\n🔥 Urgência: {{ $('Normalizar Etapa do Lead').first().json.urgencia }}\n👀 Interesse em visita: {{ $('Normalizar Etapa do Lead').first().json.interesse_visita ? 'SIM' : 'NÃO/NAO INFORMADO' }}\n🧠 Motivo IA: {{ $('Normalizar Etapa do Lead').first().json.motivo_acao }}\n\n👉 Chama ele agora. A IA já ajudou a escolher o imóvel; você assume negociação, detalhes finais e possível visita.\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        80,
+        2864
+      ],
+      "id": "039eebdd-4edf-4669-9424-8da9954d016a",
+      "name": "HTTP Request5"
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('Config Cliente').first().json;\nconst items = $input.all();\nconst base = String(config.site_imobiliaria || '').replace(/\\/$/, '');\nconst limite = Number(config.limite_opcoes_site || 6);\nconst filtros = items.find(i => i.json.filtros)?.json.filtros || $('Preparar URLs - Busca Inteligente').first().json.filtros || {};\n\nfunction absolutize(link) {\n  if (!link) return '';\n  link = String(link).trim().replace(/&amp;/g, '&');\n  if (link.startsWith('http')) return link;\n  if (link.startsWith('//')) return 'https:' + link;\n  if (link.startsWith('/')) return base + link;\n  return base + '/' + link.replace(/^\\/+/, '');\n}\n\nfunction stripTags(s) {\n  return String(s || '')\n    .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')\n    .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')\n    .replace(/<[^>]+>/g, ' ')\n    .replace(/&nbsp;/g, ' ')\n    .replace(/&amp;/g, '&')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nfunction slugMatch(text, terms) {\n  const t = String(text || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase();\n  return terms.some(term => term && t.includes(String(term).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase()));\n}\n\nconst urls = new Map();\nconst propertyTerms = ['imovel','imoveis','casa','apartamento','terreno','sobrado','alugar','locacao','locação','comprar','venda','empreendimento'];\n\nfor (const item of items) {\n  const content = item.json.body || item.json.data || item.json.response || JSON.stringify(item.json || {});\n  const html = String(content || '');\n  if (!html || html.length < 20) continue;\n\n  // sitemap.xml: <loc>https://...</loc>\n  for (const m of html.matchAll(/<loc>\\s*([^<]+)\\s*<\\/loc>/gi)) {\n    const url = absolutize(m[1]);\n    if (slugMatch(url, propertyTerms)) urls.set(url, { url, fonte: 'sitemap', titulo: '', descricao: '' });\n  }\n\n  // HTML anchors with local context\n  const anchorRegex = /<a\\b([^>]*?)href=[\"']([^\"']+)[\"']([^>]*)>([\\s\\S]*?)<\\/a>/gi;\n  let m;\n  while ((m = anchorRegex.exec(html)) !== null) {\n    const href = m[2];\n    const url = absolutize(href);\n    const anchorText = stripTags(m[4]);\n    const start = Math.max(0, m.index - 800);\n    const end = Math.min(html.length, anchorRegex.lastIndex + 1200);\n    const contexto = stripTags(html.slice(start, end));\n    const combined = `${url} ${anchorText} ${contexto}`;\n\n    if (!slugMatch(combined, propertyTerms)) continue;\n\n    const preco = (contexto.match(/R\\$\\s?[0-9\\.]+(?:,[0-9]{2})?/i) || [''])[0];\n    const bairro = (contexto.match(/(?:bairro|setor|jardim|vila|centro)[:\\s-]+([A-Za-zÀ-ÿ0-9\\s]{2,40})/i) || [,''])[1]?.trim() || '';\n\n    if (!urls.has(url)) {\n      urls.set(url, {\n        url,\n        fonte: item.json.fonte || 'html',\n        titulo: anchorText.slice(0, 140),\n        preco,\n        bairro,\n        descricao: contexto.slice(0, 900)\n      });\n    }\n  }\n}\n\nlet imoveis = [...urls.values()];\n\n// Filtro leve antes da IA, sem matar resultado quando site é pobre\nconst tipo = filtros.tipo && filtros.tipo !== 'indefinido' ? filtros.tipo : '';\nconst finalidade = filtros.finalidade && filtros.finalidade !== 'indefinido' ? filtros.finalidade : '';\nconst cidade = filtros.cidade || config.cidade || '';\nconst palavras = [...(filtros.palavras_chave || []), filtros.bairro || '', filtros.quartos ? `${filtros.quartos}` : ''].filter(Boolean);\n\nimoveis = imoveis.map((im, idx) => {\n  let score_match = 0;\n  const blob = `${im.url} ${im.titulo} ${im.descricao}`;\n  if (tipo && slugMatch(blob, [tipo])) score_match += 3;\n  if (finalidade && slugMatch(blob, [finalidade, finalidade === 'locacao' ? 'alugar' : 'comprar'])) score_match += 3;\n  if (cidade && slugMatch(blob, [cidade])) score_match += 2;\n  for (const p of palavras) if (slugMatch(blob, [p])) score_match += 1;\n  return { ...im, score_match, opcao: idx + 1 };\n}).sort((a,b) => b.score_match - a.score_match).slice(0, Math.max(limite * 3, 12));\n\nreturn [{\n  json: {\n    filtros,\n    total_imoveis_encontrados: imoveis.length,\n    imoveis_encontrados: imoveis,\n    lead_id: $('Mesclar ID Lead Supabase').first().json.lead_id || '',\n    busca_site_status: imoveis.length ? 'encontrou_opcoes' : 'sem_opcoes'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        -384
+      ],
+      "id": "1e254173-cd73-4f84-8f59-d68f07620bb1",
+      "name": "Extrair Imóveis do HTML/Sitemap"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($('Config Cliente').first().json.waha_url || 'http://waha:3000') + '/api/sendText' }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"X-Api-Key\": \"{{ $('Config Cliente').first().json.waha_api_key }}\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"session\": \"{{ $('Config Cliente').first().json.session }}\",\n  \"chatId\": \"{{ $('Edit Fields').first().json.phone }}\",\n  \"text\": \"{{ $json.resposta }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2208,
+        -384
+      ],
+      "id": "63b109b8-0720-45aa-a501-a40f6f9b9d37",
+      "name": "Enviar Opções Encontradas ao Lead"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=Você vai preparar filtros para busca de imóveis. Use primeiro os dados já extraídos pela IA Orquestradora. Complete apenas o que faltar pela mensagem do cliente.\n\nDados já extraídos:\n{{ JSON.stringify($('Normalizar Etapa do Lead').item.json.filtros_busca || {}) }}\n\nMensagem do cliente:\n{{ $('Edit Fields').item.json.message }}\n\nResponda APENAS em JSON válido:\n{\n  \"finalidade\": \"venda | locacao | investimento | indefinido\",\n  \"tipo\": \"casa | apartamento | terreno | sala-comercial | sobrado | kitnet | indefinido\",\n  \"cidade\": \"cidade desejada ou {{ $('Config Cliente').first().json.cidade }}\",\n  \"bairro\": \"bairro citado ou vazio\",\n  \"quartos\": \"número ou vazio\",\n  \"valor_maximo\": \"número ou vazio\",\n  \"palavras_chave\": [\"lista curta de características citadas\"]\n}\n\nNão invente valor, bairro ou quantidade de quartos. Se não souber, deixe vazio ou indefinido."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.2,
+      "position": [
+        32,
+        -384
+      ],
+      "id": "e6a8f02d-3059-427d-b91e-6cee39615ab8",
+      "name": "Extrair Filtros para Busca Inteligente"
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('Config Cliente').first().json;\nconst raw = $json.output?.[0]?.content?.[0]?.text || '{}';\nconst clean = raw.replace(/```json/gi, '').replace(/```/g, '').trim();\n\nfunction slug(v) {\n  return String(v || '')\n    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')\n    .toLowerCase()\n    .replace(/ç/g, 'c')\n    .replace(/[^a-z0-9]+/g, '-')\n    .replace(/^-+|-+$/g, '');\n}\n\nlet filtros;\ntry { filtros = JSON.parse(clean); } catch (e) { filtros = {}; }\n\nfiltros.finalidade = filtros.finalidade || 'indefinido';\nfiltros.tipo = filtros.tipo || 'indefinido';\nfiltros.cidade = filtros.cidade || config.cidade;\nfiltros.bairro = filtros.bairro || '';\nfiltros.quartos = filtros.quartos || '';\nfiltros.valor_maximo = filtros.valor_maximo || '';\nfiltros.palavras_chave = Array.isArray(filtros.palavras_chave) ? filtros.palavras_chave : [];\n\nconst base = String(config.site_imobiliaria || '').replace(/\\/$/, '');\nconst paths = Array.isArray(config.paths_imobiliarios) ? config.paths_imobiliarios : ['/imovel', '/imoveis', '/venda', '/comprar', '/alugar', '/locacao'];\nconst urls = [];\n\nfunction add(url, fonte) {\n  if (!url) return;\n  const finalUrl = url.startsWith('http') ? url : base + (url.startsWith('/') ? url : '/' + url);\n  if (!urls.find(u => u.url === finalUrl)) urls.push({ url: finalUrl, fonte });\n}\n\nadd(base, 'home');\nadd(base + (config.sitemap_path || '/sitemap.xml'), 'sitemap');\n\nfor (const p of paths) {\n  const path = p.startsWith('/') ? p : '/' + p;\n  add(path, 'path_base');\n\n  // tenta padrões comuns de sites imobiliários\n  const finalidade = filtros.finalidade === 'locacao' ? 'alugar' : (filtros.finalidade === 'venda' || filtros.finalidade === 'compra' ? 'comprar' : filtros.finalidade);\n  if (finalidade && finalidade !== 'indefinido') add(`${path}/${finalidade}`, 'path_finalidade');\n  if (filtros.tipo && filtros.tipo !== 'indefinido') add(`${path}/${finalidade || ''}/${slug(filtros.tipo)}`, 'path_tipo');\n  if (filtros.cidade) add(`${path}/${finalidade || ''}/${slug(filtros.tipo || '')}/${slug(filtros.cidade)}`, 'path_cidade');\n}\n\nreturn urls.slice(0, 18).map(u => ({\n  json: {\n    ...u,\n    filtros,\n    site_base: base,\n    lead_id: $('Mesclar ID Lead Supabase').first().json.lead_id || ''\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        -384
+      ],
+      "id": "2671aebf-1abd-4402-86eb-52d07231fa59",
+      "name": "Preparar URLs - Busca Inteligente"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=Você é um atendente profissional da imobiliária {{ $node[\"Config Cliente\"].json[\"imobiliaria\"] }}.\n\nUse o tom definido no Config Cliente: {{ $node[\"Config Cliente\"].json[\"tom_atendimento\"] }}.\n\nInformações seguras disponíveis:\nNome: {{ $node[\"Config Cliente\"].json[\"imobiliaria\"] }}\nCidade principal: {{ $node[\"Config Cliente\"].json[\"cidade_principal\"] || $node[\"Config Cliente\"].json[\"cidade\"] }}\nCidades aceitas: {{ JSON.stringify($node[\"Config Cliente\"].json[\"cidades_aceitas\"] || []) }}\nSite: {{ $node[\"Config Cliente\"].json[\"site_imobiliaria\"] }}\nAtendimento: {{ $node[\"Config Cliente\"].json[\"horario_atendimento\"] }}\n\nClassificação/segurança da IA:\n{{ JSON.stringify($('Normalizar Etapa do Lead').first().json) }}\n\nMensagem do cliente:\n{{ $node[\"Edit Fields\"].json[\"message\"] }}\n\nRegras:\n- Se existir resposta_curta_sugerida e fallback_aplicado = true, use essa resposta como base.\n- Não invente valores, endereço, documentos ou promessas.\n- Se a pergunta exigir informação específica da imobiliária que não aparece no contexto, diga que vai confirmar com a equipe.\n- Seja curto, natural e termine com uma pergunta útil.\n\nResponda apenas com o texto final para o cliente. Não use JSON."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.2,
+      "position": [
+        64,
+        2608
+      ],
+      "id": "34404dd0-917f-42ae-896a-3ebb8831dd59",
+      "name": "Message a model4"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($('Config Cliente').first().json.waha_url || 'http://waha:3000') + '/api/sendText' }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"X-Api-Key\": \"{{ $('Config Cliente').first().json.waha_api_key }}\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"session\": \"{{ $('Config Cliente').first().json.session }}\",\n  \"chatId\": \"{{ $('Edit Fields').first().json.phone }}\",\n  \"text\": \"{{ $('Salvar nome').item.json.client_name !== 'NAO_INFORMADO' ? $('Salvar nome').item.json.client_name + ', ' : '' }}{{ $json.output[0].content[0].text }}\\n\\nVocê quer que eu:\\n1️⃣ Te mostre mais opções\\n2️⃣ Te conecte com um corretor\\n3️⃣ Tire mais dúvidas\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        400,
+        2608
+      ],
+      "id": "8fbe0510-962a-467c-b2b6-56aa80630f92",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($('Config Cliente').first().json.waha_url || 'http://waha:3000') + '/api/sendText' }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"X-Api-Key\": \"{{ $('Config Cliente').first().json.waha_api_key }}\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  session: $('Config Cliente').first().json.session,\n  chatId: $('Webhook').first().json.from || $('Webhook').first().json.body?.payload?.from || $('Webhook').first().json.payload?.from || $('Webhook').first().json.body?.from || '',\n  text: $('Config Cliente').first().json.mensagem_boas_vindas || 'Perfeito! 👋 Já estou verificando isso pra você, só um instante...'\n} }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -3824,
+        1248
+      ],
+      "id": "47a430d3-b4d5-43ff-a187-ceb775d3a67b",
+      "name": "HTTP Request8",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($('Config Cliente').first().json.waha_url || 'http://waha:3000') + '/api/sendText' }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"X-Api-Key\": \"{{ $('Config Cliente').first().json.waha_api_key }}\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"session\": \"{{ $('Config Cliente').first().json.session }}\",\n  \"chatId\": \"{{ $('Edit Fields').first().json.phone }}\",\n  \"text\": \"Posso te ajudar com imóveis, dúvidas ou conectar você com um corretor 😊\\n\\nO que você procura?\\n\\n1️⃣ Ver imóveis\\n2️⃣ Falar com corretor\\n3️⃣ Tirar dúvidas\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        64,
+        3040
+      ],
+      "id": "99d51da4-60c3-44ed-9ad9-393038e867b6",
+      "name": "HTTP Request9"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=Extraia o primeiro nome do cliente, se ele informou claramente.\n\nRegras:\n- Responda apenas com o primeiro nome ou NAO_INFORMADO.\n- Não confunda nome de bairro, cidade, imobiliária ou imóvel com nome da pessoa.\n- Se a pessoa só cumprimentou, responda NAO_INFORMADO.\n\nMensagem:\n{{ $('Edit Fields').item.json.message }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.2,
+      "position": [
+        -2768,
+        1248
+      ],
+      "id": "af6fde83-e4c3-4c70-b1a6-de1d6365a111",
+      "name": "Message a model5"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "73969a48-5120-4405-9e88-5cd988bf4e3d",
+              "name": "client_name",
+              "value": "={{ $json.output[0].content[0].text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2400,
+        1248
+      ],
+      "id": "ee323030-e98f-49cd-8ce7-c011d4854fba",
+      "name": "Salvar nome"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($('Config Cliente').first().json.waha_url || 'http://waha:3000') + '/api/sendText' }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"X-Api-Key\": \"{{ $('Config Cliente').first().json.waha_api_key }}\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  session: $('Config Cliente').first().json.session,\n  chatId: $('Edit Fields').first().json.phone || $('Webhook').first().json.body?.payload?.from || $('Webhook').first().json.payload?.from || $('Webhook').first().json.body?.from || $('Webhook').first().json.from,\n  text: String($('Config Cliente').first().json.mensagem_fora_area || 'No momento atendemos apenas {cidade} e região 😊').replace('{cidade}', $('Config Cliente').first().json.cidade_principal || $('Config Cliente').first().json.cidade)\n} }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2160,
+        1392
+      ],
+      "id": "a1842813-f31e-4a29-977d-8dbe2f8ed354",
+      "name": "HTTP Request10"
+    },
+    {
+      "parameters": {
+        "url": "={{ ($('Config Cliente').first().json.waha_url || 'http://waha:3000') + '/api/sessions/' + $('Config Cliente').first().json.session }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"X-Api-Key\": \"{{ $('Config Cliente').first().json.waha_api_key }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -4352,
+        1264
+      ],
+      "id": "b293c385-0ba3-491f-8444-be1955044f1c",
+      "name": "Verificar WAHA",
+      "retryOnFail": false,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "5eda93a3-f2b0-4c2a-9d12-d8c581b5e5c9",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "WORKING",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -4096,
+        1264
+      ],
+      "id": "079f1408-9968-40a5-b7a2-d43832a6a786",
+      "name": "WAHA Working?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($('Config Cliente').first().json.waha_url || 'http://waha:3000') + '/api/sessions/' + $('Config Cliente').first().json.session + '/restart' }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"X-Api-Key\": \"{{ $('Config Cliente').first().json.waha_api_key }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -4096,
+        1840
+      ],
+      "id": "13b05c5b-1126-46ee-82c1-9e5c979faf18",
+      "name": "Restart WAHA",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -3856,
+        1840
+      ],
+      "id": "40e4e618-8528-4c58-947b-dc92581faf39",
+      "name": "Aguardar 10s"
+    },
+    {
+      "parameters": {
+        "url": "={{ ($('Config Cliente').first().json.waha_url || 'http://waha:3000') + '/api/sessions/' + $('Config Cliente').first().json.session }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"X-Api-Key\": \"{{ $('Config Cliente').first().json.waha_api_key }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -3600,
+        1840
+      ],
+      "id": "d65c3531-d712-4062-acbf-b7499e29ed3a",
+      "name": "Verificar WAHA Novamente",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "1d1427ba-f9d0-4819-8259-a8076ffa4d5f",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "WORKING",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -3376,
+        1728
+      ],
+      "id": "1815a8b4-24a3-4310-9375-de8a504b3797",
+      "name": "WAHA Voltou?"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Config Cliente').first().json.telegram_corretor }}",
+        "text": "=🚨 NOVO LEAD PARA ATENDIMENTO MANUAL 🚨\n\nLead: {{ $('Webhook').first().json.from }}\nInteresse: {{ $('Webhook').first().json.body }}\n\nClique para chamar no WhatsApp:\nhttps://wa.me/{{ $('Webhook').first().json.from.replace('@c.us','').replace('+','') }}\n\nMotivo: agente automático indisponível no momento.",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -2768,
+        1744
+      ],
+      "id": "b0d590f0-fcfe-48cc-965b-336ac407e054",
+      "name": "Notificar Corretor -Manual",
+      "notesInFlow": true,
+      "notes": "TEMPLATE LIMPO: configure a credencial Telegram neste node antes de ativar em produção."
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Config Cliente').first().json.telegram_enzo }}",
+        "text": "=🚨 FALHA CRÍTICA WAHA\n\nImobiliária: {{ $('Config Cliente').first().json.imobiliaria }}\nSessão: {{ $('Config Cliente').first().json.session }}\n\nStatus atual: {{ $json.status || 'sem resposta' }}\n\nLead: {{ $('Webhook').first().json.from }}\nMensagem: {{ $('Webhook').first().json.body }}\n\nHorário: {{ $now }}\n\nA sessão não voltou após tentativa automática de restart.",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -3056,
+        1744
+      ],
+      "id": "224ae7a9-a7a6-4460-8bcc-dc00a314c757",
+      "name": "Notificar Dev Suporte",
+      "notesInFlow": true,
+      "notes": "TEMPLATE LIMPO: configure a credencial Telegram neste node antes de ativar em produção."
+    },
+    {
+      "parameters": {
+        "jsCode": "const webhook = $('Webhook').first().json;\nconst config = $('Config Cliente').first().json;\n\nconst telefone = webhook.from || webhook.body?.payload?.from || webhook.payload?.from || webhook.body?.from || '';\nconst mensagem = webhook.body?.body || webhook.payload?.body || webhook.body || '';\nconst nome = webhook.pushName || webhook.name || 'não informado';\n\nreturn [\n  {\n    json: {\n      data: new Date().toISOString(),\n      imobiliaria: config.imobiliaria,\n      session: config.session,\n      nome,\n      telefone,\n      mensagem,\n      cidade_detectada: $('Edit Fields1').first().json.city || '',\n      cidade_valida: true,\n      intencao: \"nao_classificado\",\n      tipo_negocio: \"nao_classificado\",\n      imovel_especifico: \"nao_informado\",\n      origem: \"nao_informado\",\n      etapa: \"recebido\",\n      lgpd: \"nao_solicitado\",\n      score: 0,\n      temperatura: \"nao_classificado\",\n      status: \"recebido\"\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1904,
+        1232
+      ],
+      "id": "c92409f1-d63a-4017-bb28-e0c2faf4f9c0",
+      "name": "Preparar Lead"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      // =====================================================\n      // CONFIG CLIENTE MASTER - edite quase tudo só aqui\n      // =====================================================\n\n      // Empresa / operação\n\n      // Identificação do cliente / multi-tenant\n      cliente_id: \"CLIENTE_IMOBILIARIA_001\", // use um slug único por imobiliária. Ex: imob_ponta_pora_001\n      imobiliaria: \"NOME_DA_IMOBILIARIA\",\n      cidade_principal: \"CIDADE_ATENDIDA\",\n      cidade: \"CIDADE_ATENDIDA\", // alias usado por nodes antigos\n      cidades_aceitas: [\"CIDADE_ATENDIDA\", \"CIDADE_SEM_ACENTO\", \"CIDADE_VIZINHA\"],\n      bairros_aceitos: [],\n      horario_atendimento: \"Segunda a sexta, em horário comercial\",\n      idioma: \"pt-BR\",\n      tom_atendimento: \"humano, consultivo, direto e comercial leve\",\n\n      // WAHA / WhatsApp\n      waha_url: \"http://waha:3000\",\n      session: \"default\",\n      waha_api_key: \"SUA_API_KEY_WAHA\",\n      usar_audio: false,\n      audio_ativo: false, // alias usado por nodes antigos\n      usar_texto_fallback: true,\n      mensagem_digitando: true,\n      tempo_pausa_humana_segundos: 2,\n\n      // OpenAI / IA\n      modelo_openai: \"gpt-4o-mini\",\n      modelo_classificacao: \"gpt-4o-mini\",\n      modelo_resposta: \"gpt-4o-mini\",\n      modelo_audio_tts: \"tts-1\",\n      voz_padrao: \"alloy\",\n      temperatura_ia: 0.4,\n\n      // Blindagem V3.1 / produção\n      confianca_minima_acao: 0.62,\n      confianca_minima_base: 6,\n      fallback_acao_baixa_confianca: \"RESPONDER_DUVIDA\",\n      mensagem_fallback_baixa_confianca: \"Consigo te ajudar com imóveis, localização, documentação, visitas ou conectar você com um corretor. Você procura comprar, alugar ou tirar uma dúvida?\",\n      salvar_debug_ia: true,\n\n      // Supabase\n      supabase_url: \"SUA_SUPABASE_URL\", // exemplo: https://xxxx.supabase.co\n      supabase_anon_key: \"SUA_SUPABASE_ANON_KEY\",\n      supabase_tabela_leads: \"leads_imobiliaria\",\n      tabela_leads: \"leads_imobiliaria\", // alias\n      tabela_mensagens: \"mensagens_imobiliaria\",\n      tabela_imoveis: \"imoveis_cache\",\n\n\n      // V4.0 - Memória / SDR IA\n      supabase_tabela_memoria_leads: \"leads_memoria_imobiliaria\",\n      supabase_tabela_followups: \"followups_imobiliaria\",\n      memoria_ativa: true,\n      followup_ativo: true,\n      regra_corretor_apenas_com_imovel: true,\n      perguntar_interesse_visita: true,\n      perguntar_urgencia_sem_prometer_agenda: true,\n      coletar_data_horario_visita: false,\n      mensagem_trava_corretor_sem_imovel: \"Consigo te ajudar a escolher o imóvel ideal antes de te conectar com um corretor 😊 Me fala: você procura casa, apartamento ou terreno? Para comprar ou alugar?\",\n      mensagem_interesse_visita: \"Se alguma opção fizer sentido, posso te conectar com um corretor para te orientar sobre uma possível visita, sem compromisso.\",\n\n      // Site da imobiliária / busca inteligente\n      site_imobiliaria: \"https://site-da-imobiliaria.com.br\",\n      usar_busca_inteligente: true,\n      busca_inteligente_ativa: true, // alias usado por nodes antigos\n      path_busca: \"/imovel\",\n      paths_alternativos: [\"/imovel\", \"/imoveis\", \"/comprar\", \"/venda\", \"/alugar\", \"/locacao\"],\n      paths_imobiliarios: [\"/imovel\", \"/imoveis\", \"/comprar\", \"/venda\", \"/alugar\", \"/locacao\"], // alias\n      sitemap_path: \"/sitemap.xml\",\n      limite_imoveis_enviados: 5,\n      limite_opcoes_site: 5, // alias usado por nodes antigos\n      palavras_chave_imoveis: [\"imovel\", \"imóveis\", \"casa\", \"apartamento\", \"terreno\", \"venda\", \"aluguel\", \"locação\"],\n\n\n\n      // Base de conhecimento da imobiliária (FAQ / regras / operação)\n      usar_base_conhecimento: true,\n      base_conhecimento_ativa: true,\n      supabase_tabela_base_conhecimento: \"base_conhecimento_imobiliaria\",\n      limite_base_conhecimento: 6,\n      categorias_base_conhecimento: [\n        \"HORARIOS\",\n        \"LOCALIZACAO\",\n        \"SOBRE_NOS\",\n        \"DOCUMENTACAO\",\n        \"FINANCIAMENTO\",\n        \"LOCACAO\",\n        \"COMISSAO\",\n        \"VISITAS\",\n        \"GARANTIAS\",\n        \"CONTATO\",\n        \"BAIRROS_ATENDIDOS\",\n        \"DIFERENCIAIS\"\n      ],\n      // Funil / etapas\n      pedir_nome: true,\n      pedir_origem: true,\n      origens_permitidas: [\"INSTAGRAM\", \"FACEBOOK\", \"INDICACAO\", \"GOOGLE\", \"OUTRO\"],\n      exigir_imovel_escolhido_antes_analise: true,\n      exigir_lgpd_antes_analise: true,\n\n      // LGPD\n      texto_lgpd: \"Autorizo usar meus dados apenas para pré-análise imobiliária e encaminhamento de atendimento.\",\n      palavras_aceite_lgpd: [\"sim\", \"autorizo\", \"aceito\", \"pode\", \"ok\", \"concordo\"],\n      palavras_recusa_lgpd: [\"não\", \"nao\", \"não autorizo\", \"recuso\"],\n\n      // Regras comerciais - compra/investimento\n      entrada_minima_percentual: 10,\n      renda_minima_compra_aproximada: 0,\n      usar_fgts_no_score: true,\n      pontuar_nome_limpo: true,\n      score_entrada_forte_percentual: 20,\n\n      // Regras comerciais - locação\n      renda_minima_locacao_multiplicador: 3,\n      garantias_aceitas: [\"CAUCAO\", \"FIADOR\", \"SEGURO_FIANCA\"],\n      pontuar_comprovante_renda: true,\n\n      // Scoring\n      score_lead_quente: 8,\n      score_lead_medio: 5,\n      score_lead_frio: 0,\n      notificar_apenas_quentes: false,\n      alertar_corretor_score_minimo: 5,\n\n      // Telegram / equipe interna\n      telegram_enzo: \"SEU_CHAT_ID_TELEGRAM\",\n      telegram_gerente: \"CHAT_ID_GERENTE\",\n      telegram_corretor: \"CHAT_ID_CORRETOR\",\n      telefone_corretor: \"55DDDNUMERODOCORRETOR\",\n      telefone_gerente: \"55DDDNUMERODOGERENTE\",\n      nome_corretor_padrao: \"Corretor da equipe\",\n\n      // Mensagens padrão personalizáveis\n      mensagem_boas_vindas: \"Perfeito! 👋 Já estou verificando isso pra você, só um instante...\",\n      mensagem_fora_area: \"No momento atendemos apenas {cidade} e região 😊\",\n      mensagem_pedir_origem: \"Ah, me conta uma coisa rapidinho: como você encontrou a gente? Instagram, Facebook, indicação, Google ou outro?\",\n      mensagem_sem_imovel: \"Antes da pré-análise, vou te ajudar a encontrar o imóvel ideal.\",\n      mensagem_pedir_escolha_imovel: \"Perfeito. Antes da pré-análise, me fala qual imóvel você gostou mais.\",\n      mensagem_pedir_lgpd: \"Antes de seguir com a pré-análise, preciso da sua autorização para usar suas informações apenas para entender se seu perfil combina com esse imóvel e encaminhar corretamente o atendimento.\\n\\n{texto_lgpd}\\n\\nVocê autoriza? Responda SIM para continuar.\",\n      mensagem_pedir_dados_compra: \"Show. Me responde rapidinho: renda familiar aproximada, entrada disponível, se tem FGTS e se o nome está sem restrição.\",\n      mensagem_pedir_dados_locacao: \"Show. Pra locação, me responde: renda mensal aproximada, se tem comprovante, se o nome está sem restrição e qual garantia teria: caução, fiador ou seguro-fiança.\",\n      mensagem_fallback_corretor: \"Vou te conectar com um corretor para te ajudar melhor.\",\n\n      // Relatório\n      relatorio_ativo: true,\n      dia_relatorio: \"segunda\",\n      hora_relatorio: \"08:00\",\n      enviar_relatorio_para: \"telegram_gerente\",\n      incluir_origem_no_relatorio: true,\n      incluir_score_no_relatorio: true,\n      incluir_imoveis_mais_procurados: true,\n\n      // Teste / debug\n      modo_teste: true,\n      numero_teste: \"55DDDNUMEROTESTE\",\n      salvar_logs_debug: true\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4608,
+        1264
+      ],
+      "id": "9e3362b1-4066-4639-984a-6e20195dcc70",
+      "name": "Config Cliente"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=Você é a IA SDR IMOBILIÁRIA V4.0 da imobiliária {{ $('Config Cliente').first().json.imobiliaria }}.\n\nVocê trabalha com PSEUDO-TOOLS: você NÃO chama ferramentas reais. Você escolhe a próxima ação no campo \"proxima_acao\" e o n8n executa.\n\nCONTEXTO DA IMOBILIÁRIA:\n- Cidade principal: {{ $('Config Cliente').first().json.cidade_principal || $('Config Cliente').first().json.cidade }}\n- Cidades aceitas: {{ JSON.stringify($('Config Cliente').first().json.cidades_aceitas || []) }}\n- Tom: {{ $('Config Cliente').first().json.tom_atendimento }}\n- Site: {{ $('Config Cliente').first().json.site_imobiliaria }}\n\nMEMÓRIA DO LEAD (use para não repetir pergunta e manter continuidade):\n{{ JSON.stringify($('Normalizar Memória do Lead').first().json.memoria_lead || {}) }}\n\nMENSAGEM ATUAL DO CLIENTE:\n{{ $('Edit Fields').first().json.message }}\n\nREGRA DE OURO — OBRIGATÓRIA:\nA IA NUNCA deve passar o lead para corretor para \"ajudar a escolher imóvel\".\nSeu trabalho é ajudar o cliente a escolher primeiro.\nSó use CORRETOR quando houver imóvel escolhido/referência clara, como: link, código, opção 1/2/3, endereço, bairro + imóvel específico, ou quando a memória já indicar imovel_escolhido=true.\nNÃO colete data ou horário de visita. Não pergunte \"qual dia/horário\". Não prometa agendamento.\nVocê pode medir interesse em visita e urgência, sem oferecer agenda:\n- interesse_visita: true/false\n- urgencia: ALTA/MEDIA/BAIXA/NAO_INFORMADO\n\nAÇÕES DISPONÍVEIS:\n1) BUSCAR_IMOVEIS\nUse quando o lead quer ver opções, ainda não escolheu imóvel, quer comprar/alugar/investir, ou pede corretor mas ainda não tem imóvel definido. Você deve conduzir a escolha.\n\n2) CONSULTAR_BASE\nUse para dúvidas institucionais ou operacionais: horário, endereço, documentos, financiamento, garantia, comissão, sobre a empresa, bairros atendidos, como funciona visita etc.\n\n3) PEDIR_ESCOLHA\nUse quando falta informação mínima para buscar/recomendar imóveis: finalidade, tipo, cidade, bairro, quartos ou faixa de valor.\n\n4) LGPD\nUse quando já existe imóvel escolhido + intenção definida e o próximo passo é pré-análise comercial.\n\n5) ANALISE_CREDITO\nUse quando já existe imóvel escolhido + LGPD aceita. Se faltarem dados financeiros, o node de análise deve pedir os dados faltantes.\n\n6) RESPONDER_DUVIDA\nUse para respostas simples que não exigem base e não inventam informação.\n\n7) CORRETOR\nUse somente se imovel_escolhido=true OU imovel_referencia não estiver vazio. O corretor assume para negociação, detalhes finais e possível visita.\n\nRETORNE APENAS JSON VÁLIDO, sem markdown:\n{\n  \"proxima_acao\": \"BUSCAR_IMOVEIS | CONSULTAR_BASE | PEDIR_ESCOLHA | LGPD | ANALISE_CREDITO | RESPONDER_DUVIDA | CORRETOR\",\n  \"confianca\": 0.0,\n  \"motivo_acao\": \"explique em uma frase curta o motivo da ação\",\n  \"risco_inventar\": \"BAIXO | MEDIO | ALTO\",\n  \"origem\": \"INSTAGRAM | FACEBOOK | INDICACAO | GOOGLE | OUTRO | NAO_INFORMADO\",\n  \"nome_cliente\": \"primeiro nome ou NAO_INFORMADO\",\n  \"cidade\": \"cidade detectada ou NAO_INFORMADO\",\n  \"intencao\": \"COMPRA | LOCACAO | INVESTIMENTO | DUVIDA | INDEFINIDO\",\n  \"tipo_imovel\": \"CASA | APARTAMENTO | TERRENO | SOBRADO | SALA_COMERCIAL | KITNET | INDEFINIDO\",\n  \"bairro\": \"bairro citado ou vazio\",\n  \"quartos\": \"número ou vazio\",\n  \"valor_maximo\": \"número ou vazio\",\n  \"tem_imovel_especifico\": false,\n  \"imovel_referencia\": \"link, código, opção escolhida ou vazio\",\n  \"imovel_escolhido\": false,\n  \"precisa_buscar_imoveis\": true,\n  \"pode_ir_para_lgpd\": false,\n  \"lgpd_aceita\": false,\n  \"dados_financeiros_presentes\": false,\n  \"interesse_visita\": false,\n  \"urgencia\": \"ALTA | MEDIA | BAIXA | NAO_INFORMADO\",\n  \"etapa_funil\": \"novo | buscando_imovel | comparando_opcoes | imovel_escolhido | pre_analise | pronto_corretor\",\n  \"pergunta_base_conhecimento\": \"pergunta reescrita para buscar na base ou vazio\",\n  \"categoria_base_sugerida\": \"HORARIOS | LOCALIZACAO | SOBRE_NOS | DOCUMENTACAO | FINANCIAMENTO | LOCACAO | GARANTIAS | VISITAS | CONTATO | OUTRO | VAZIO\",\n  \"resposta_curta_sugerida\": \"resposta curta se for seguro responder sem base, senão vazio\",\n  \"dados_faltantes\": [\"lista curta do que falta perguntar\"]\n}\n\n\n\nREGRAS LGPD / PRÉ-ANÁLISE:\n- Se já existe imóvel escolhido e o cliente ainda não autorizou LGPD, use proxima_acao = LGPD.\n- Se a mensagem atual for apenas \"SIM\", \"autorizo\", \"aceito\" e já existir imóvel escolhido na memória, marque lgpd_aceita=true.\n- Se lgpd_aceita=true, já existe imóvel escolhido, mas faltam dados financeiros, use ANALISE_CREDITO mesmo assim; o node de análise vai pedir os dados faltantes.\n- Se o cliente enviar SIM + renda/entrada/FGTS/garantia/nome limpo, use ANALISE_CREDITO.\n\nREGRAS DE DECISÃO:\n- Se pediu corretor mas não escolheu imóvel, NÃO use CORRETOR. Use BUSCAR_IMOVEIS ou PEDIR_ESCOLHA e diga que vai ajudar a encontrar a melhor opção primeiro.\n- Se o cliente disser \"quero visitar\", \"posso ver pessoalmente\", \"tem visita\", marque interesse_visita=true. Não peça data/horário.\n- Se ele disser \"hoje\", \"urgente\", \"essa semana\", \"preciso rápido\", urgencia=ALTA.\n- Se escolheu \"opção 1\", \"a primeira\", mandou link/código/endereço específico, tem_imovel_especifico=true e imovel_escolhido=true.\n- Se não souber responder com dados reais da imobiliária, CONSULTAR_BASE.\n- Nunca invente endereço, horário, valores, disponibilidade ou aprovação de crédito."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.2,
+      "position": [
+        -816,
+        1232
+      ],
+      "id": "9f3a34e9-6644-4749-af6f-70750f61abba",
+      "name": "IA Orquestradora - Decidir Ação com Tools"
+    },
+    {
+      "parameters": {
+        "jsCode": "function safeNode(name) {\n  try { return $(name).first().json || {}; } catch (e) { return {}; }\n}\nfunction cleanStr(v){ return String(v || '').trim(); }\nfunction hasRef(v){\n  const s = cleanStr(v).toLowerCase();\n  return !!s && !['nao_informado','não informado','vazio','undefined','null'].includes(s);\n}\n\nconst config = safeNode('Config Cliente');\nconst baseLead = safeNode('Mesclar ID Lead Supabase');\nconst prepararLead = safeNode('Preparar Lead');\nconst editFields = safeNode('Edit Fields');\nconst cidadeAnterior = safeNode('Edit Fields1');\nconst memoriaNode = safeNode('Normalizar Memória do Lead');\nconst memoria = memoriaNode.memoria_lead || {};\n\nconst raw = $json.output?.[0]?.content?.[0]?.text || '{}';\nconst clean = String(raw).replace(/```json/gi, '').replace(/```/g, '').trim();\n\nlet etapa = {};\nlet parse_ok = true;\nlet parse_error = '';\ntry { etapa = JSON.parse(clean); } catch(e) { parse_ok = false; parse_error = e.message; etapa = {}; }\n\nconst allowed = ['BUSCAR_IMOVEIS','CONSULTAR_BASE','PEDIR_ESCOLHA','LGPD','ANALISE_CREDITO','RESPONDER_DUVIDA','CORRETOR'];\nconst acaoOriginal = etapa.proxima_acao;\nlet acao = cleanStr(etapa.proxima_acao).toUpperCase();\nlet fallback_aplicado = false;\nlet motivo_fallback = '';\n\nif (!allowed.includes(acao)) {\n  acao = 'PEDIR_ESCOLHA';\n  fallback_aplicado = true;\n  motivo_fallback = 'acao_invalida_ou_vazia';\n}\n\nlet confianca = Number(etapa.confianca);\nif (!Number.isFinite(confianca)) confianca = 0.5;\nconfianca = Math.max(0, Math.min(1, confianca));\n\nconst confiancaMinima = Number(config.confianca_minima_acao ?? 0.62);\nif (confianca < confiancaMinima && !['CORRETOR','PEDIR_ESCOLHA'].includes(acao)) {\n  acao = config.fallback_acao_baixa_confianca || 'RESPONDER_DUVIDA';\n  fallback_aplicado = true;\n  motivo_fallback = `baixa_confianca_${confianca}`;\n}\n\nconst risco = cleanStr(etapa.risco_inventar || 'BAIXO').toUpperCase();\nif (risco === 'ALTO' && acao === 'RESPONDER_DUVIDA') {\n  acao = 'CONSULTAR_BASE';\n  fallback_aplicado = true;\n  motivo_fallback = 'risco_alto_inventar_consultar_base';\n}\n\nconst imovelRef = hasRef(etapa.imovel_referencia) ? etapa.imovel_referencia : (hasRef(memoria.imovel_referencia) ? memoria.imovel_referencia : '');\nconst temImovel = !!etapa.tem_imovel_especifico || !!etapa.imovel_escolhido || !!memoria.imovel_escolhido || hasRef(imovelRef);\n\n// TRAVA V4.0: corretor nunca ajuda a escolher imóvel. Primeiro a IA ajuda o lead a escolher.\nif (acao === 'CORRETOR' && !temImovel && (config.regra_corretor_apenas_com_imovel ?? true)) {\n  acao = 'BUSCAR_IMOVEIS';\n  fallback_aplicado = true;\n  motivo_fallback = 'trava_v4_corretor_sem_imovel_escolhido';\n}\n\n// Proteção: análise só com imóvel/referência e LGPD/dados.\nif (acao === 'ANALISE_CREDITO' && !temImovel) {\n  acao = 'PEDIR_ESCOLHA';\n  fallback_aplicado = true;\n  motivo_fallback = 'analise_sem_imovel_especifico';\n}\n\nfunction toTipoSlug(v) { return String(v || 'INDEFINIDO').toLowerCase().replace(/_/g,'-'); }\n\nconst intencao = etapa.intencao || memoria.intencao || 'INDEFINIDO';\nconst filtros_busca = {\n  finalidade: intencao === 'LOCACAO' ? 'locacao' : (intencao === 'COMPRA' ? 'venda' : (intencao === 'INVESTIMENTO' ? 'investimento' : (memoria.finalidade || 'indefinido'))),\n  tipo: etapa.tipo_imovel && etapa.tipo_imovel !== 'INDEFINIDO' ? toTipoSlug(etapa.tipo_imovel) : (memoria.tipo_imovel ? toTipoSlug(memoria.tipo_imovel) : 'indefinido'),\n  cidade: etapa.cidade && etapa.cidade !== 'NAO_INFORMADO' ? etapa.cidade : (memoria.cidade || config.cidade || ''),\n  bairro: etapa.bairro || memoria.bairro || '',\n  quartos: etapa.quartos || memoria.quartos || '',\n  valor_maximo: etapa.valor_maximo || memoria.valor_maximo || '',\n  palavras_chave: [etapa.tipo_imovel || memoria.tipo_imovel, etapa.bairro || memoria.bairro, etapa.quartos ? `${etapa.quartos} quartos` : ''].filter(Boolean)\n};\n\nconst fallbackText = config.mensagem_fallback_baixa_confianca || 'Consigo te ajudar com imóveis, localização, documentação, visitas ou conectar você com um corretor quando você escolher uma opção. Você procura comprar, alugar ou tirar uma dúvida?';\nconst interesseVisita = !!etapa.interesse_visita || !!memoria.interesse_visita;\nconst urgencia = cleanStr(etapa.urgencia || memoria.urgencia || 'NAO_INFORMADO').toUpperCase();\nlet etapaFunil = etapa.etapa_funil || memoria.etapa_funil || acao;\nif (temImovel && acao !== 'BUSCAR_IMOVEIS') etapaFunil = etapaFunil === 'novo' ? 'imovel_escolhido' : etapaFunil;\n\nreturn [{ json: {\n  ...prepararLead,\n  ...baseLead,\n  memoria_lead: memoria,\n  memoria_existe: !!memoriaNode.memoria_existe,\n  memoria_id: memoriaNode.memoria_id || '',\n  origem: etapa.origem || memoria.origem || prepararLead.origem || 'NAO_INFORMADO',\n  nome_cliente_ia: etapa.nome_cliente || memoria.nome || 'NAO_INFORMADO',\n  cidade: etapa.cidade || memoria.cidade || cidadeAnterior.city || '',\n  intencao,\n  tipo_negocio: intencao,\n  tipo_imovel: etapa.tipo_imovel || memoria.tipo_imovel || 'INDEFINIDO',\n  tem_imovel_especifico: temImovel,\n  imovel_escolhido: temImovel,\n  imovel_especifico: imovelRef || 'nao_informado',\n  imovel_referencia: imovelRef,\n  precisa_buscar_imoveis: !!etapa.precisa_buscar_imoveis || acao === 'BUSCAR_IMOVEIS',\n  pode_ir_para_lgpd: !!etapa.pode_ir_para_lgpd && temImovel,\n  lgpd_aceita: !!etapa.lgpd_aceita,\n  dados_financeiros_presentes: !!etapa.dados_financeiros_presentes,\n  interesse_visita: interesseVisita,\n  urgencia,\n  etapa_funil: etapaFunil,\n  pergunta_base_conhecimento: etapa.pergunta_base_conhecimento || editFields.message || '',\n  categoria_base_sugerida: etapa.categoria_base_sugerida || 'VAZIO',\n  resposta_curta_sugerida: etapa.resposta_curta_sugerida || (fallback_aplicado ? fallbackText : ''),\n  filtros_busca,\n  filtros: filtros_busca,\n  etapa: acao,\n  proxima_acao: acao,\n  acao_original_ia: acaoOriginal || '',\n  confianca_ia: confianca,\n  motivo_acao: etapa.motivo_acao || '',\n  risco_inventar: risco,\n  dados_faltantes: Array.isArray(etapa.dados_faltantes) ? etapa.dados_faltantes : [],\n  fallback_aplicado,\n  motivo_fallback,\n  parse_ok,\n  parse_error,\n  raw_ia_orquestradora: raw,\n  classificacao_etapa_raw: etapa\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -512,
+        1232
+      ],
+      "id": "84d0f36c-9401-4e1d-b841-fd846db49bbd",
+      "name": "Normalizar Etapa do Lead"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "96039c93-89ba-443c-9997-19d123a7041f",
+                    "leftValue": "={{ $json.proxima_acao }}",
+                    "rightValue": "BUSCAR_IMOVEIS",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "b3ac91f8-70d5-4bf7-85a2-bf0921033ef6",
+                    "leftValue": "={{ $json.proxima_acao }}",
+                    "rightValue": "CONSULTAR_BASE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "0e20bbc3-8efb-4bd5-8f9b-592ee34fc151",
+                    "leftValue": "={{ $json.proxima_acao }}",
+                    "rightValue": "PEDIR_ESCOLHA",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "fcb90678-3052-4c45-b790-b7fb9ce7e1ac",
+                    "leftValue": "={{ $json.proxima_acao }}",
+                    "rightValue": "LGPD",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "3706d199-6c65-44dd-a23b-8e4cfcc82943",
+                    "leftValue": "={{ $json.proxima_acao }}",
+                    "rightValue": "ANALISE_CREDITO",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "a76a52d3-fa8e-442f-ab95-93bfc2860f45",
+                    "leftValue": "={{ $json.proxima_acao }}",
+                    "rightValue": "RESPONDER_DUVIDA",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "22b6770f-0310-44e7-a6cf-32fde9c70047",
+                    "leftValue": "={{ $json.proxima_acao }}",
+                    "rightValue": "CORRETOR",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -192,
+        1072
+      ],
+      "id": "2055cf33-1d17-4f91-b5f5-e0ed00c81b7a",
+      "name": "Switch Etapa Inteligente"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($('Config Cliente').first().json.waha_url || 'http://waha:3000') + '/api/sendText' }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"X-Api-Key\": \"{{ $('Config Cliente').first().json.waha_api_key }}\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"session\": \"{{ $('Config Cliente').first().json.session }}\",\n  \"chatId\": \"{{ $('Edit Fields').first().json.phone }}\",\n  \"text\": \"Perfeito 😊 Vou te ajudar a encontrar o imóvel certo antes de te conectar com um corretor.\n\nVocê procura para comprar, alugar ou investir?\n\nE prefere casa, apartamento, terreno ou sala comercial? Me fala também bairro, valor aproximado e quantidade de quartos se tiver preferência.\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        224,
+        224
+      ],
+      "id": "715554e2-ff16-48e4-ad50-0e922e6b80b4",
+      "name": "Pedir Perfil e Escolha do Imovel"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($('Config Cliente').first().json.waha_url || 'http://waha:3000') + '/api/sendText' }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"X-Api-Key\": \"{{ $('Config Cliente').first().json.waha_api_key }}\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  session: $('Config Cliente').first().json.session,\n  chatId: $('Edit Fields').first().json.phone,\n  text: String($('Config Cliente').first().json.mensagem_pedir_lgpd || 'Antes de seguir com a pré-análise, preciso da sua autorização para usar suas informações apenas para entender se seu perfil combina com esse imóvel e encaminhar corretamente o atendimento.\\n\\n{texto_lgpd}\\n\\nVocê autoriza? Responda SIM para continuar.').replace('{texto_lgpd}', $('Config Cliente').first().json.texto_lgpd || 'Autorizo usar meus dados apenas para pré-análise imobiliária e encaminhamento de atendimento.') + '\\n\\nDepois que você responder, eu continuo por aqui mesmo.'\n} }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        752,
+        1328
+      ],
+      "id": "2237f37a-d145-4b92-88e3-8acdd71ce105",
+      "name": "Enviar LGPD ao Lead - Aguardar Resposta"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=Você é um qualificador comercial de imobiliária. Faça uma PRÉ-ANÁLISE comercial, nunca prometa aprovação bancária, aprovação pela Caixa ou garantia de locação.\n\nIMPORTANTE:\n- A análise só deve ocorrer se já houver intenção definida e imóvel escolhido/referência.\n- Extraia valores numéricos quando aparecerem na conversa.\n- Se faltar dado importante, retorne temperatura PRECISA_DADOS e score baixo/médio.\n\nResponda APENAS em JSON válido:\n{\n  \"tipo_negocio\": \"COMPRA | LOCACAO | INVESTIMENTO\",\n  \"valor_imovel\": 0,\n  \"valor_aluguel\": 0,\n  \"renda_mensal\": 0,\n  \"entrada\": 0,\n  \"fgts\": \"SIM | NAO | NAO_INFORMADO\",\n  \"restricao\": \"SIM | NAO | NAO_INFORMADO\",\n  \"comprovante_renda\": \"SIM | NAO | NAO_INFORMADO\",\n  \"garantia_locacao\": \"CAUCAO | FIADOR | SEGURO_FIANCA | NAO_INFORMADO\",\n  \"urgencia\": \"ALTA | MEDIA | BAIXA | NAO_INFORMADO\",\n  \"temperatura_sugerida\": \"LEAD_QUENTE | LEAD_MEDIO | LEAD_FRIO | PRECISA_DADOS | PRECISA_CORRETOR\",\n  \"resumo_financeiro\": \"\",\n  \"motivo\": \"\",\n  \"proximo_passo\": \"\",\n  \"alerta_corretor\": \"\"\n}\n\nCritérios COMPRA/INVESTIMENTO:\n- imóvel específico escolhido\n- renda familiar aproximada\n- entrada/FGTS\n- restrição no nome\n- urgência\n\nCritérios LOCAÇÃO:\n- imóvel específico escolhido\n- renda mensal comparada ao aluguel\n- comprovante de renda\n- restrição no nome\n- garantia: caução, fiador ou seguro-fiança\n\nMensagem atual do cliente:\n{{ $('Edit Fields').item.json.message }}\n\nEtapa/intenção detectada:\n{{ JSON.stringify($('Normalizar Etapa do Lead').item.json) }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.2,
+      "position": [
+        288,
+        2016
+      ],
+      "id": "4258b340-b844-448c-8596-5a7b289389a3",
+      "name": "Analisar Perfil Financeiro / Credito"
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('Config Cliente').first().json;\nconst etapa = $('Normalizar Etapa do Lead').first().json;\nconst raw = $json.output?.[0]?.content?.[0]?.text || '{}';\nconst clean = raw.replace(/```json/gi, '').replace(/```/g, '').trim();\n\nlet a;\ntry { a = JSON.parse(clean); } catch(e) { a = {}; }\n\nfunction money(v) {\n  if (v === null || v === undefined || v === '') return 0;\n  if (typeof v === 'number') return v;\n  const s = String(v)\n    .toLowerCase()\n    .replace(/r\\$/g, '')\n    .replace(/\\s/g, '')\n    .replace(/mil/g, '000')\n    .replace(/\\./g, '')\n    .replace(',', '.');\n  const n = Number(s.replace(/[^0-9.]/g, ''));\n  return Number.isFinite(n) ? n : 0;\n}\n\nfunction norm(v) {\n  return String(v || 'NAO_INFORMADO').trim().toUpperCase();\n}\n\nconst tipo = norm(a.tipo_negocio || etapa.intencao);\nconst valorImovel = money(a.valor_imovel);\nconst valorAluguel = money(a.valor_aluguel);\nconst renda = money(a.renda_mensal);\nconst entrada = money(a.entrada);\nconst fgts = norm(a.fgts);\nconst restricao = norm(a.restricao);\nconst comprovante = norm(a.comprovante_renda);\nconst garantia = norm(a.garantia_locacao);\nconst urgencia = norm(a.urgencia);\n\nconst temImovel = Boolean(etapa.tem_imovel_especifico || etapa.imovel_especifico || etapa.imovel_referencia);\nconst multLocacao = Number(config.renda_minima_locacao_multiplicador || 3);\nconst minQuente = Number(config.score_lead_quente || 8);\nconst minMedio = Number(config.score_lead_medio || 5);\n\nlet score = 0;\nconst motivos = [];\nconst faltando = [];\n\n// Regra universal: sem imóvel escolhido não vira quente\nif (temImovel) { score += 2; motivos.push('imóvel/referência definido'); }\nelse { faltando.push('imóvel escolhido'); }\n\nif (['COMPRA', 'INVESTIMENTO'].includes(tipo)) {\n  if (renda > 0) { score += 2; motivos.push('renda informada'); } else faltando.push('renda familiar');\n  if (entrada > 0) { score += 2; motivos.push('entrada informada'); } else faltando.push('entrada disponível');\n  if (fgts === 'SIM') { score += 1; motivos.push('possui FGTS'); }\n  if (restricao === 'NAO') { score += 2; motivos.push('sem restrição informada'); }\n  else if (restricao === 'SIM') { score -= 3; motivos.push('informou restrição no nome'); }\n  else faltando.push('situação de restrição');\n  if (urgencia === 'ALTA') { score += 1; motivos.push('alta urgência'); }\n\n  // Sinal de compatibilidade simples: entrada >= 10% do valor do imóvel\n  if (valorImovel > 0 && entrada > 0) {\n    const percEntrada = entrada / valorImovel;\n    if (percEntrada >= 0.20) { score += 1; motivos.push('entrada forte'); }\n    else if (percEntrada < 0.10) { score -= 1; motivos.push('entrada abaixo de 10%'); }\n  }\n}\n\nif (tipo === 'LOCACAO') {\n  if (renda > 0) { score += 2; motivos.push('renda informada'); } else faltando.push('renda mensal');\n  if (valorAluguel > 0) { score += 1; motivos.push('aluguel informado'); } else faltando.push('valor do aluguel');\n  if (renda > 0 && valorAluguel > 0) {\n    const rendaMinima = valorAluguel * multLocacao;\n    if (renda >= rendaMinima) { score += 3; motivos.push(`renda compatível: >= ${multLocacao}x o aluguel`); }\n    else { score -= 2; motivos.push(`renda abaixo de ${multLocacao}x o aluguel`); }\n  }\n  if (comprovante === 'SIM') { score += 1; motivos.push('tem comprovante de renda'); }\n  else if (comprovante === 'NAO') { score -= 1; motivos.push('sem comprovante de renda'); }\n  else faltando.push('comprovante de renda');\n  if (restricao === 'NAO') { score += 2; motivos.push('sem restrição informada'); }\n  else if (restricao === 'SIM') { score -= 3; motivos.push('informou restrição no nome'); }\n  else faltando.push('situação de restrição');\n  if (['CAUCAO', 'FIADOR', 'SEGURO_FIANCA'].includes(garantia)) { score += 1; motivos.push(`garantia disponível: ${garantia}`); }\n  else faltando.push('garantia de locação');\n}\n\nscore = Math.max(0, Math.min(10, score));\n\nlet temperatura;\nif (faltando.length >= 3) temperatura = 'PRECISA_DADOS';\nelse if (score >= minQuente) temperatura = 'LEAD_QUENTE';\nelse if (score >= minMedio) temperatura = 'LEAD_MEDIO';\nelse temperatura = 'LEAD_FRIO';\n\n// Travas comerciais\nif (!temImovel) temperatura = 'PRECISA_ESCOLHER_IMOVEL';\nif (restricao === 'SIM' && score > minMedio) temperatura = 'LEAD_MEDIO';\n\nconst badge = temperatura === 'LEAD_QUENTE' ? '🔥 QUENTE' :\n  temperatura === 'LEAD_MEDIO' ? '⚠️ MÉDIO' :\n  temperatura === 'PRECISA_DADOS' ? '🟡 PRECISA DADOS' :\n  temperatura === 'PRECISA_ESCOLHER_IMOVEL' ? '🏠 PRECISA ESCOLHER IMÓVEL' : '❄️ FRIO';\n\nconst prioridade = temperatura === 'LEAD_QUENTE' ? 'ALTA - chamar agora' :\n  temperatura === 'LEAD_MEDIO' ? 'MÉDIA - nutrir e validar dados' :\n  temperatura === 'PRECISA_DADOS' ? 'MÉDIA - coletar dados faltantes' :\n  temperatura === 'PRECISA_ESCOLHER_IMOVEL' ? 'BAIXA/MÉDIA - ajudar a escolher imóvel' : 'BAIXA - manter relacionamento';\n\nconst resumoFinanceiro = a.resumo_financeiro || [\n  renda ? `Renda: R$ ${renda}` : '',\n  valorAluguel ? `Aluguel: R$ ${valorAluguel}` : '',\n  valorImovel ? `Imóvel: R$ ${valorImovel}` : '',\n  entrada ? `Entrada: R$ ${entrada}` : '',\n  fgts !== 'NAO_INFORMADO' ? `FGTS: ${fgts}` : '',\n  restricao !== 'NAO_INFORMADO' ? `Restrição: ${restricao}` : '',\n  garantia !== 'NAO_INFORMADO' ? `Garantia: ${garantia}` : ''\n].filter(Boolean).join(' | ');\n\nlet proximoPasso = a.proximo_passo || '';\nif (!proximoPasso) {\n  if (temperatura === 'LEAD_QUENTE') proximoPasso = 'Corretor deve chamar agora, confirmar dados e encaminhar para simulação/análise oficial.';\n  else if (temperatura === 'LEAD_MEDIO') proximoPasso = 'Corretor deve validar dados faltantes e oferecer alternativas compatíveis.';\n  else if (temperatura === 'PRECISA_DADOS') proximoPasso = `Coletar: ${faltando.join(', ')}.`;\n  else if (temperatura === 'PRECISA_ESCOLHER_IMOVEL') proximoPasso = 'Ajudar o lead a escolher um imóvel específico antes da pré-análise.';\n  else proximoPasso = 'Manter atendimento consultivo e enviar opções mais adequadas.';\n}\n\nreturn [{ json: {\n  ...etapa,\n  lgpd: 'aceito_pelo_cliente',\n  tipo_negocio: tipo,\n  valor_imovel: valorImovel,\n  valor_aluguel: valorAluguel,\n  renda_mensal: renda,\n  entrada,\n  fgts,\n  restricao,\n  comprovante_renda: comprovante,\n  garantia_locacao: garantia,\n  urgencia,\n  score,\n  temperatura,\n  score_badge: badge,\n  prioridade,\n  motivos_score: motivos.join('; '),\n  dados_faltantes: faltando.join(', '),\n  resumo_financeiro: resumoFinanceiro,\n  motivo: a.motivo || motivos.join('; ') || 'Pré-análise calculada pelas regras comerciais do template.',\n  proximo_passo: proximoPasso,\n  alerta_corretor: a.alerta_corretor || (temperatura === 'LEAD_QUENTE' ? 'Lead quente: priorizar atendimento imediato.' : ''),\n  status: 'pre_analise_realizada'\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        2016
+      ],
+      "id": "cbb914cb-57d8-4e0b-b616-d6d43571df3b",
+      "name": "Normalizar Analise Credito"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Config Cliente').first().json.telegram_gerente }}",
+        "text": "=🔥 LEAD QUALIFICADO - {{ $json.score_badge }}\n\n🏢 Imobiliária: {{ $('Config Cliente').first().json.imobiliaria }}\n👤 Nome: {{ $json.nome }}\n📞 Telefone: {{ $json.telefone }}\n📍 Cidade: {{ $json.cidade_detectada }}\n📲 Origem: {{ $json.origem }}\n🎯 Intenção: {{ $json.tipo_negocio }}\n🏠 Imóvel/ref.: {{ $json.imovel_especifico }}\n\n⭐ Score: {{ $json.score }}/10\n🚦 Prioridade: {{ $json.prioridade }}\n\n🧾 Resumo financeiro:\n{{ $json.resumo_financeiro || 'não informado' }}\n\n✅ Pontos positivos/negativos:\n{{ $json.motivos_score || 'não informado' }}\n\n⚠️ Dados faltantes:\n{{ $json.dados_faltantes || 'nenhum' }}\n\nMotivo:\n{{ $json.motivo }}\n\nPróximo passo:\n{{ $json.proximo_passo }}\n\nChamar agora:\nhttps://wa.me/{{ $json.telefone.replace('@c.us','').replace('+','') }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1184,
+        2016
+      ],
+      "id": "fee4fde1-9cfe-49e5-a78c-1c791c024f34",
+      "name": "Notificar Gerente - Lead Qualificado",
+      "notesInFlow": true,
+      "notes": "TEMPLATE LIMPO: configure a credencial Telegram neste node antes de ativar em produção."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($('Config Cliente').first().json.waha_url || 'http://waha:3000') + '/api/sendText' }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"X-Api-Key\": \"{{ $('Config Cliente').first().json.waha_api_key }}\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"session\": \"{{ $('Config Cliente').first().json.session }}\",\n  \"chatId\": \"{{ $('Edit Fields').first().json.phone }}\",\n  \"text\": \"Perfeito, {{ $json.nome && $json.nome !== 'NAO_INFORMADO' ? $json.nome : 'obrigado pelas informações' }}. Fiz uma pré-análise inicial do seu perfil para esse imóvel.\n\n{{ $json.temperatura === 'LEAD_QUENTE' ? 'Pelo que você me passou, seu perfil parece bem interessante para seguir com um corretor agora.' : $json.temperatura === 'LEAD_MEDIO' ? 'Pelo que você me passou, parece que dá pra avançar, mas o corretor precisa validar alguns detalhes.' : $json.temperatura === 'PRECISA_DADOS' ? 'Ainda faltam alguns dados para eu qualificar melhor seu perfil.' : 'Vou te direcionar da melhor forma para o corretor avaliar as possibilidades.' }}\n\nImportante: isso não é aprovação bancária nem aprovação oficial da Caixa, é só uma pré-análise comercial inicial.\n\nVou encaminhar para o atendimento responsável e eles seguem com você, tudo bem?\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1456,
+        2016
+      ],
+      "id": "dfd889f0-d468-45b6-a8f9-14418048eb93",
+      "name": "Responder Pos Analise ao Lead"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($('Config Cliente').first().json.waha_url || 'http://waha:3000') + '/api/sendVoice' }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"X-Api-Key\": \"{{ $('Config Cliente').first().json.waha_api_key }}\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"session\": \"{{ $('Config Cliente').first().json.session }}\",\n  \"chatId\": \"{{ $('Edit Fields').first().json.phone }}\",\n  \"file\": {\n    \"url\": \"URL_PUBLICA_DO_AUDIO_GERADO_PELO_TTS.mp3\"\n  },\n  \"convert\": true\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1744,
+        2016
+      ],
+      "id": "b95234c0-750e-46cd-b194-b930d889c2d7",
+      "name": "Enviar Voz WAHA - OPCIONAL precisa TTS",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "content": "## 1) Entrada + verificação WAHA\nWebhook → Config Cliente → Verificar WAHA. Se estiver fora, tenta restart e notifica suporte/corretor.",
+        "height": 476,
+        "width": 980,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -4896,
+        976
+      ],
+      "id": "2fa888ab-5269-4386-9e26-8d2552fd8388",
+      "name": "🧩 1 Entrada + WAHA"
+    },
+    {
+      "parameters": {
+        "content": "## 2) Dados básicos + cidade\nCaptura telefone/mensagem, extrai cidade e nome. Só salva lead comercial se a cidade for atendida.",
+        "height": 476,
+        "width": 1384,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -3648,
+        976
+      ],
+      "id": "7eaae523-926e-4842-923f-280a4c6cd1a3",
+      "name": "🏙️ 2 Validação do Lead"
+    },
+    {
+      "parameters": {
+        "content": "## 3) Roteador inteligente\nSalva lead, detecta origem/intenção/imóvel escolhido e decide a próxima ação sem pular etapas.",
+        "height": 476,
+        "width": 946,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1040,
+        960
+      ],
+      "id": "cd4e440d-afc7-4a69-b842-8ed8b198f6af",
+      "name": "🧠 3 Etapa Inteligente"
+    },
+    {
+      "parameters": {
+        "content": "## Buscar imóveis\nQuando o lead ainda não escolheu imóvel, busca opções no site e pede para escolher uma antes da LGPD/análise.",
+        "height": 276,
+        "width": 350,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        96,
+        96
+      ],
+      "id": "acb6539f-f67b-4234-b9ff-9e76d497ab4a",
+      "name": "🏠 4 Escolha do Imóvel"
+    },
+    {
+      "parameters": {
+        "content": "## 🔐 5 LGPD + Pré-análise\nLGPD envia autorização e encerra a execução.\nA resposta do cliente volta pelo Webhook e pode seguir para ANÁLISE_CREDITO.",
+        "height": 328,
+        "width": 1720,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        224,
+        1888
+      ],
+      "id": "790a7741-8f42-4957-b75c-77f5b8748378",
+      "name": "🔐 5 LGPD + Análise"
+    },
+    {
+      "parameters": {
+        "content": "## Dúvidas, corretor e fallback\nRespostas humanizadas, escalação para corretor ou menu simples quando não entendeu.",
+        "height": 712,
+        "width": 600,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        2480
+      ],
+      "id": "3af0bda8-eb9b-4ef7-bf29-a5aa8775425c",
+      "name": "💬 6 Respostas/Fallback"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config Cliente').first().json.supabase_url.replace(/\\/$/, '') + '/rest/v1/' + $('Config Cliente').first().json.supabase_tabela_leads }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ {\n  apikey: $('Config Cliente').first().json.supabase_anon_key,\n  Authorization: 'Bearer ' + $('Config Cliente').first().json.supabase_anon_key,\n  'Content-Type': 'application/json',\n  Prefer: 'return=representation'\n} }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  imobiliaria: $('Config Cliente').first().json.imobiliaria,\n  session: $('Config Cliente').first().json.session,\n  nome: $json.nome || '',\n  telefone: $json.telefone || '',\n  mensagem: $json.mensagem || '',\n  cidade: $json.cidade || $('Edit Fields1').first().json.city || '',\n  origem: $json.origem || 'nao_informado',\n  intencao: $json.interesse || $json.intencao || 'nao_classificado',\n  tipo_negocio: $json.tipo_negocio || '',\n  imovel_escolhido: false,\n  imovel_referencia: '',\n  valor_imovel: null,\n  valor_aluguel: null,\n  renda: null,\n  entrada: null,\n  fgts: null,\n  restricao: null,\n  garantia_locacao: '',\n  consentimento_lgpd: false,\n  score: 0,\n  temperatura: 'NAO_QUALIFICADO',\n  prioridade: 'BAIXA',\n  resumo_financeiro: '',\n  proximo_passo: 'classificar_etapa',\n  motivo_score: '',\n  status: $json.status || 'recebido'\n} }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1680,
+        1232
+      ],
+      "id": "c8a34308-ca05-4b5d-9fad-bad0002be2d9",
+      "name": "Supabase - Salvar Lead Inicial",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('Preparar Lead').first().json;\nconst response = $json;\nlet inserted = response;\n\nif (Array.isArray(response)) inserted = response[0] || {};\nif (response && Array.isArray(response.body)) inserted = response.body[0] || {};\nif (response && response.body && !Array.isArray(response.body)) inserted = response.body;\n\nreturn [{\n  json: {\n    ...original,\n    lead_id: inserted.id || response.id || '',\n    supabase_salvo: !!(inserted.id || response.id),\n    supabase_resposta: response\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1424,
+        1232
+      ],
+      "id": "aa33552e-0e6a-46c0-a5a9-f2ea8ed868c3",
+      "name": "Mesclar ID Lead Supabase"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Config Cliente').first().json.supabase_url.replace(/\\/$/, '') + '/rest/v1/' + $('Config Cliente').first().json.supabase_tabela_leads + '?id=eq.' + $('Mesclar ID Lead Supabase').first().json.lead_id }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ {\n  apikey: $('Config Cliente').first().json.supabase_anon_key,\n  Authorization: 'Bearer ' + $('Config Cliente').first().json.supabase_anon_key,\n  'Content-Type': 'application/json',\n  Prefer: 'return=representation'\n} }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  origem: $json.origem || $('Mesclar ID Lead Supabase').first().json.origem || 'nao_informado',\n  intencao: $json.intencao || $json.tipo_negocio || $('Normalizar Etapa do Lead').first().json.intencao || '',\n  tipo_negocio: $json.tipo_negocio || $('Normalizar Etapa do Lead').first().json.intencao || '',\n  imovel_escolhido: $json.imovel_escolhido ?? $('Normalizar Etapa do Lead').first().json.tem_imovel_especifico ?? false,\n  imovel_referencia: $json.imovel_referencia || $('Normalizar Etapa do Lead').first().json.imovel_referencia || '',\n  valor_imovel: $json.valor_imovel || null,\n  valor_aluguel: $json.valor_aluguel || null,\n  renda: $json.renda || null,\n  entrada: $json.entrada || null,\n  fgts: $json.fgts ?? null,\n  restricao: $json.restricao ?? null,\n  garantia_locacao: $json.garantia_locacao || '',\n  consentimento_lgpd: $json.consentimento_lgpd ?? true,\n  score: $json.score || 0,\n  temperatura: $json.temperatura || 'NAO_CLASSIFICADO',\n  prioridade: $json.prioridade || 'BAIXA',\n  resumo_financeiro: $json.resumo_financeiro || $json.resumo || '',\n  proximo_passo: $json.proximo_passo || '',\n  motivo_score: $json.motivo_score || $json.motivo || '',\n  status: 'qualificado'\n} }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        912,
+        2016
+      ],
+      "id": "82554353-4b21-49f3-a247-a60ed53bb5f9",
+      "name": "Supabase - Atualizar Lead Qualificado",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "content": "🗄️ SUPABASE\n\nEste template salva todos os leads no Supabase.\n\nConfigure no node Config Cliente:\n- supabase_url\n- supabase_anon_key\n- supabase_tabela_leads\n\nTabela sugerida: leads_imobiliaria",
+        "height": 460,
+        "width": 700,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1952,
+        976
+      ],
+      "id": "318374fc-ba09-4348-91a9-6ceb98181bd9",
+      "name": "🗄️ Supabase"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=Você é um assistente imobiliário. Escolha as melhores opções encontradas no site para responder ao lead.\n\nFiltros desejados:\n{{ JSON.stringify($json.filtros) }}\n\nImóveis encontrados no site:\n{{ JSON.stringify($json.imoveis_encontrados) }}\n\nRegras:\n- Escolha no máximo {{ $('Config Cliente').first().json.limite_opcoes_site || 6 }} opções.\n- Priorize imóveis que batem com finalidade, tipo, cidade, bairro, quartos e valor.\n- Se o site não trouxe valor ou descrição, não invente. Diga \"consulte detalhes no link\".\n- A resposta deve ajudar o lead a escolher UM imóvel antes da LGPD/análise.\n- Termine perguntando qual opção ele gostou mais.\n\nResponda APENAS em JSON válido:\n{\n  \"resposta\": \"texto final para WhatsApp\",\n  \"opcoes\": [\n    {\"opcao\": 1, \"titulo\": \"\", \"url\": \"\", \"preco\": \"\", \"motivo\": \"\"}\n  ],\n  \"resumo_busca\": \"\"\n}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        -384
+      ],
+      "id": "83623db4-6d21-45b8-b0d9-412500ae06c9",
+      "name": "Selecionar Melhores Imóveis com IA"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.output?.[0]?.content?.[0]?.text || '';\nconst anterior = $('Extrair Imóveis do HTML/Sitemap').first().json;\nconst config = $('Config Cliente').first().json;\nconst nome = (() => { try { return $('Salvar nome').first().json.client_name; } catch(e) { return ''; } })();\nconst saudacao = nome && nome !== 'NAO_INFORMADO' ? `${nome}, ` : '';\n\nfunction cleanJson(s) { return String(s || '').replace(/```json/gi, '').replace(/```/g, '').trim(); }\nlet parsed = null;\ntry { parsed = JSON.parse(cleanJson(raw)); } catch(e) {}\n\nif (parsed && parsed.resposta) {\n  return [{ json: { ...anterior, ...parsed, resposta: parsed.resposta, status_busca: 'resposta_ia' } }];\n}\n\nconst imoveis = anterior.imoveis_encontrados || [];\nlet resposta;\nif (imoveis.length) {\n  const top = imoveis.slice(0, Number(config.limite_opcoes_site || 6));\n  resposta = `${saudacao}encontrei algumas opções no site que podem combinar com o que você procura 👇\\n\\n` +\n    top.map((im, i) => `Opção ${i + 1}: ${im.titulo || 'Imóvel encontrado'}${im.preco ? ` — ${im.preco}` : ''}\\n${im.url}`).join('\\n\\n') +\n    `\\n\\nQual dessas opções você gostou mais? Me fala o número ou manda o link que eu sigo com a próxima etapa.`;\n} else {\n  resposta = `${saudacao}não consegui localizar opções claras no site com esses filtros agora.\\n\\nMe passa mais detalhes como tipo do imóvel, bairro, faixa de valor e quantidade de quartos que eu tento refinar a busca. Se preferir, já posso chamar um corretor também.`;\n}\n\nreturn [{ json: { ...anterior, resposta, opcoes: imoveis.slice(0, Number(config.limite_opcoes_site || 6)), resumo_busca: `${imoveis.length} opções encontradas no site`, status_busca: imoveis.length ? 'fallback_com_opcoes' : 'fallback_sem_opcoes' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1616,
+        -384
+      ],
+      "id": "f1d45d00-cd14-4ddf-852d-9d838e785096",
+      "name": "Normalizar Resposta da Busca Inteligente"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Config Cliente').first().json.supabase_url.replace(/\\/$/, '') + '/rest/v1/' + $('Config Cliente').first().json.supabase_tabela_leads + '?id=eq.' + $('Mesclar ID Lead Supabase').first().json.lead_id }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ {\n  apikey: $('Config Cliente').first().json.supabase_anon_key,\n  Authorization: 'Bearer ' + $('Config Cliente').first().json.supabase_anon_key,\n  'Content-Type': 'application/json',\n  Prefer: 'return=representation'\n} }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  intencao: $('Normalizar Etapa do Lead').first().json.intencao || '',\n  tipo_negocio: $('Normalizar Etapa do Lead').first().json.intencao || '',\n  imovel_escolhido: false,\n  imovel_referencia: '',\n  imoveis_encontrados: $json.opcoes || $json.imoveis_encontrados || [],\n  resumo_busca: $json.resumo_busca || '',\n  status: 'opcoes_enviadas',\n  proximo_passo: 'aguardar_escolha_imovel'\n} }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1920,
+        -384
+      ],
+      "id": "a11fe365-c91b-4c24-ae90-51d203be512d",
+      "name": "Supabase - Salvar Opções Encontradas",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "content": "## 🔎 4.1 Busca Inteligente no Site\nLê home, sitemap e paths comuns do site. Extrai links/descrições/valores possíveis, usa IA para ranquear e salva opções no Supabase.",
+        "height": 340,
+        "width": 2450,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        -512
+      ],
+      "id": "6d0fe1af-8c4a-4da8-9586-762fc2fb707f",
+      "name": "🔎 4.1 Busca Inteligente no Site"
+    },
+    {
+      "parameters": {
+        "content": "Reset Automatico de WAHA",
+        "height": 336,
+        "width": 1632,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -4208,
+        1680
+      ],
+      "id": "d8e1c20c-36cf-44e4-876f-19dc9118a5ef",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "CHECKLISTA:\n[ ] Config Cliente preenchido\n[ ] OpenAI configurada\n[ ] Telegram configurado\n[ ] Supabase criado\n[ ] tabela leads_imobiliaria criada\n[ ] RLS ativo\n[ ] Policies INSERT/SELECT criadas\n[ ] Teste WhatsApp feito",
+        "height": 192,
+        "width": 288,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -5248,
+        1088
+      ],
+      "id": "4d5de58c-e59c-4c4f-868d-7f3a55ce7e18",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Config Cliente').first().json.supabase_url.replace(/\\/$/, '') + '/rest/v1/' + ($('Config Cliente').first().json.supabase_tabela_base_conhecimento || 'base_conhecimento_imobiliaria') + '?ativo=eq.true&select=id,cliente_id,categoria,pergunta,resposta,palavras_chave,prioridade,ativo&order=prioridade.desc.nullslast' }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ {\n  apikey: $('Config Cliente').first().json.supabase_anon_key,\n  Authorization: 'Bearer ' + $('Config Cliente').first().json.supabase_anon_key,\n  'Content-Type': 'application/json'\n} }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        336,
+        656
+      ],
+      "id": "61208487-e92d-4ab8-a16b-79c461cb51a9",
+      "name": "Supabase - Consultar Base Conhecimento",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('Config Cliente').first().json;\nconst etapa = $('Normalizar Etapa do Lead').first().json;\nconst pergunta = String(etapa.pergunta_base_conhecimento || $('Edit Fields').first().json.message || '').trim();\nconst categoria = String(etapa.categoria_base_sugerida || '').toUpperCase();\nconst clienteId = String(config.cliente_id || '').trim();\nconst minScore = Number(config.confianca_minima_base || 6);\n\nfunction norm(s) {\n  return String(s || '')\n    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')\n    .toLowerCase();\n}\n\nfunction tokenize(s) {\n  return norm(s).split(/[^a-z0-9]+/).filter(w => w.length >= 3);\n}\n\nlet rows = [];\nfor (const item of $input.all()) {\n  if (Array.isArray(item.json)) rows.push(...item.json);\n  else if (Array.isArray(item.json.data)) rows.push(...item.json.data);\n  else if (item.json && Object.keys(item.json).length) rows.push(item.json);\n}\n\nrows = rows.filter(r => {\n  if (r.ativo === false) return false;\n  if (!clienteId) return true;\n  return !r.cliente_id || String(r.cliente_id) === clienteId;\n});\n\nconst qTokens = tokenize(pergunta);\nconst scored = rows.map((r) => {\n  const keywords = Array.isArray(r.palavras_chave) ? r.palavras_chave.join(' ') : (r.palavras_chave || '');\n  const blob = `${r.categoria || ''} ${r.pergunta || ''} ${r.resposta || ''} ${keywords}`;\n  const b = norm(blob);\n  let score = Number(r.prioridade || 0);\n\n  if (categoria && categoria !== 'VAZIO' && categoria !== 'OUTRO' && norm(r.categoria) === norm(categoria)) score += 8;\n  for (const t of qTokens) if (b.includes(t)) score += 2;\n\n  const common = {\n    horario: ['horario','abre','fecha','atendimento','sabado','domingo'],\n    localizacao: ['endereco','localizacao','onde fica','mapa','rua'],\n    documento: ['documento','documentos','cpf','rg','comprovante'],\n    financiamento: ['financiamento','financiar','caixa','banco','fgts'],\n    visita: ['visita','agendar','conhecer','ver o imovel'],\n    garantia: ['fiador','caucao','seguro fianca','garantia'],\n    comissao: ['comissao','taxa','valor corretor']\n  };\n  const nq = norm(pergunta);\n  for (const terms of Object.values(common)) {\n    if (terms.some(t => nq.includes(norm(t))) && terms.some(t => b.includes(norm(t)))) score += 3;\n  }\n  return { ...r, score_match: score };\n}).sort((a,b) => b.score_match - a.score_match);\n\nconst limite = Number(config.limite_base_conhecimento || 6);\nconst selecionadas = scored.filter(r => r.score_match >= minScore).slice(0, limite);\nconst melhorScore = scored[0]?.score_match || 0;\n\nreturn [{\n  json: {\n    pergunta_base: pergunta,\n    categoria_base_sugerida: categoria,\n    total_base: rows.length,\n    base_encontrada: selecionadas.length > 0,\n    score_melhor_base: melhorScore,\n    score_minimo_base: minScore,\n    base_fallback: selecionadas.length === 0,\n    respostas_base: selecionadas,\n    melhor_resposta: selecionadas[0] || null,\n    lead_id: $('Mesclar ID Lead Supabase').first().json.lead_id || ''\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        608,
+        656
+      ],
+      "id": "158f45af-775d-4d1e-abc5-6952597d86b7",
+      "name": "Selecionar Resposta da Base Conhecimento"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=Você é o atendente da imobiliária {{ $('Config Cliente').first().json.imobiliaria }}. Responda ao cliente usando SOMENTE as informações da base de conhecimento abaixo.\n\nPergunta do cliente:\n{{ $('Edit Fields').first().json.message }}\n\nPergunta resumida para busca:\n{{ $json.pergunta_base }}\n\nBase encontrada: {{ $json.base_encontrada }}\nScore melhor item: {{ $json.score_melhor_base }}\nItens encontrados na base:\n{{ JSON.stringify($json.respostas_base) }}\n\nRegras:\n- Se base_encontrada = true, responda de forma natural, curta e segura usando apenas os itens encontrados.\n- Se base_encontrada = false, NÃO invente. Diga que vai confirmar com a equipe e ofereça conectar com corretor.\n- Não invente endereço, horário, taxas, documentos ou condições.\n- Termine com uma pergunta útil para continuar o atendimento.\n- Não mencione \"base de conhecimento\", Supabase ou sistema interno.\n\nResponda apenas com o texto final para WhatsApp."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.2,
+      "position": [
+        864,
+        656
+      ],
+      "id": "6f08206d-2938-4a10-9de0-b37dce812cf3",
+      "name": "Responder com Base de Conhecimento"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($('Config Cliente').first().json.waha_url || 'http://waha:3000') + '/api/sendText' }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"X-Api-Key\": \"{{ $('Config Cliente').first().json.waha_api_key }}\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  session: $('Config Cliente').first().json.session,\n  chatId: $('Edit Fields').first().json.phone,\n  text: $json.output?.[0]?.content?.[0]?.text || $('Normalizar Etapa do Lead').first().json.resposta_curta_sugerida || 'Vou confirmar essa informação com a equipe e já te retorno. Você quer falar com um corretor agora?'\n} }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1232,
+        656
+      ],
+      "id": "1efac145-23a5-49bb-b38e-d47e8f886b36",
+      "name": "Enviar Resposta da Base ao Lead"
+    },
+    {
+      "parameters": {
+        "content": "## 📚 Base de Conhecimento\nPerguntas sobre horário, endereço, documentos, financiamento, locação, garantias, comissão, visitas e 'sobre nós' caem em CONSULTAR_BASE.\n\nTabela Supabase esperada: `base_conhecimento_imobiliaria`.",
+        "height": 312,
+        "width": 1128,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        288,
+        528
+      ],
+      "id": "eac34950-c00a-45d9-8f65-611b8c7eac26",
+      "name": "📚 Base de Conhecimento"
+    },
+    {
+      "parameters": {
+        "content": "## ✅ V3.1 Blindagem de Produção\n\nA IA agora retorna:\n- `proxima_acao`\n- `confianca`\n- `motivo_acao`\n- `risco_inventar`\n- `dados_faltantes`\n\nO node **Normalizar Etapa do Lead** valida tudo antes do Switch.\n\nSe a confiança vier baixa ou a ação vier inválida, cai em fallback seguro.\n\nA Base de Conhecimento agora usa score mínimo para evitar resposta inventada.",
+        "height": 340,
+        "width": 932,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1040,
+        576
+      ],
+      "id": "c81f5108-7d72-4ab7-a5d7-1853db4567d1",
+      "name": "✅ V3.1 Blindagem"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Config Cliente').first().json.supabase_url.replace(/\\/$/, '') + '/rest/v1/' + ($('Config Cliente').first().json.supabase_tabela_memoria_leads || 'leads_memoria_imobiliaria') + '?telefone=eq.' + encodeURIComponent($('Edit Fields').first().json.phone || '') + '&imobiliaria=eq.' + encodeURIComponent($('Config Cliente').first().json.imobiliaria || '') + '&select=*&limit=1' }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ {\n  apikey: $('Config Cliente').first().json.supabase_anon_key,\n  Authorization: 'Bearer ' + $('Config Cliente').first().json.supabase_anon_key,\n  'Content-Type': 'application/json'\n} }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1200,
+        1232
+      ],
+      "id": "35d9a359-11e2-4421-9fdb-9c93b05e29b8",
+      "name": "Supabase - Buscar Memória do Lead",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "function firstInput() {\n  const j = $json;\n  if (Array.isArray(j)) return j[0] || {};\n  if (Array.isArray(j.body)) return j.body[0] || {};\n  if (j.body && typeof j.body === 'object') return Array.isArray(j.body) ? (j.body[0] || {}) : j.body;\n  return j || {};\n}\n\nconst memoria = firstInput();\nconst baseLead = $('Mesclar ID Lead Supabase').first().json;\nconst telefone = $('Edit Fields').first().json.phone || baseLead.telefone || '';\nconst msgAtual = $('Edit Fields').first().json.message || '';\n\nconst existe = !!(memoria.id || memoria.telefone);\n\nreturn [{ json: {\n  ...baseLead,\n  memoria_existe: existe,\n  memoria_id: memoria.id || '',\n  memoria_lead: {\n    nome: memoria.nome || baseLead.nome || '',\n    telefone,\n    cidade: memoria.cidade || baseLead.cidade || '',\n    origem: memoria.origem || baseLead.origem || 'NAO_INFORMADO',\n    intencao: memoria.intencao || baseLead.intencao || 'INDEFINIDO',\n    tipo_imovel: memoria.tipo_imovel || '',\n    bairro: memoria.bairro || '',\n    quartos: memoria.quartos || '',\n    faixa_preco: memoria.faixa_preco || '',\n    valor_maximo: memoria.valor_maximo || null,\n    finalidade: memoria.finalidade || '',\n    imovel_escolhido: !!memoria.imovel_escolhido,\n    imovel_referencia: memoria.imovel_referencia || '',\n    imoveis_encontrados: memoria.imoveis_encontrados || [],\n    interesse_visita: !!memoria.interesse_visita,\n    urgencia: memoria.urgencia || 'NAO_INFORMADO',\n    etapa_funil: memoria.etapa_funil || 'novo',\n    score: memoria.score || 0,\n    temperatura: memoria.temperatura || 'NAO_CLASSIFICADO',\n    resumo_conversa: memoria.resumo_conversa || '',\n    ultima_acao: memoria.ultima_acao || '',\n    ultimo_motivo: memoria.ultimo_motivo || '',\n    updated_at: memoria.updated_at || ''\n  },\n  mensagem_atual: msgAtual\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -992,
+        1232
+      ],
+      "id": "e113a557-5da3-4209-a13d-cffa53767ba3",
+      "name": "Normalizar Memória do Lead"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config Cliente').first().json.supabase_url.replace(/\\/$/, '') + '/rest/v1/' + ($('Config Cliente').first().json.supabase_tabela_memoria_leads || 'leads_memoria_imobiliaria') }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ {\n  apikey: $('Config Cliente').first().json.supabase_anon_key,\n  Authorization: 'Bearer ' + $('Config Cliente').first().json.supabase_anon_key,\n  'Content-Type': 'application/json',\n  Prefer: 'resolution=merge-duplicates,return=representation'\n} }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => {\n  const m = $json.memoria_lead || {};\n  const cfg = $('Config Cliente').first().json;\n  const phone = $('Edit Fields').first().json.phone || $json.telefone || '';\n  const atual = String($('Edit Fields').first().json.message || '').slice(0, 900);\n  const resumoAnterior = String(m.resumo_conversa || '').slice(-2500);\n  const resumoNovo = [resumoAnterior, `Cliente: ${atual}`, `IA ação: ${$json.proxima_acao} | motivo: ${$json.motivo_acao || ''}`]\n    .filter(Boolean).join('\\n').slice(-3500);\n\n  return {\n    imobiliaria: cfg.imobiliaria,\n    telefone: phone,\n    nome: $json.nome_cliente_ia && $json.nome_cliente_ia !== 'NAO_INFORMADO' ? $json.nome_cliente_ia : (m.nome || $json.nome || ''),\n    cidade: $json.cidade || m.cidade || cfg.cidade || '',\n    origem: $json.origem || m.origem || 'NAO_INFORMADO',\n    intencao: $json.intencao || m.intencao || 'INDEFINIDO',\n    finalidade: $json.filtros_busca?.finalidade || m.finalidade || '',\n    tipo_imovel: $json.tipo_imovel || m.tipo_imovel || '',\n    bairro: $json.filtros_busca?.bairro || m.bairro || '',\n    quartos: $json.filtros_busca?.quartos || m.quartos || '',\n    faixa_preco: $json.filtros_busca?.valor_maximo ? String($json.filtros_busca.valor_maximo) : (m.faixa_preco || ''),\n    valor_maximo: $json.filtros_busca?.valor_maximo || m.valor_maximo || null,\n    imovel_escolhido: !!$json.tem_imovel_especifico,\n    imovel_referencia: $json.imovel_referencia || m.imovel_referencia || '',\n    interesse_visita: !!($json.interesse_visita || m.interesse_visita),\n    urgencia: $json.urgencia || m.urgencia || 'NAO_INFORMADO',\n    etapa_funil: $json.etapa_funil || $json.proxima_acao || 'em_atendimento',\n    score: $json.score || m.score || 0,\n    temperatura: $json.temperatura || m.temperatura || 'NAO_CLASSIFICADO',\n    resumo_conversa: resumoNovo,\n    ultima_acao: $json.proxima_acao || '',\n    ultimo_motivo: $json.motivo_acao || '',\n    lead_id_atual: $('Mesclar ID Lead Supabase').first().json.lead_id || null,\n    updated_at: new Date().toISOString()\n  };\n})() }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -336,
+        1216
+      ],
+      "id": "32f13357-37d3-4d1e-93d5-33c4fa98ac11",
+      "name": "Supabase - Upsert Memória do Lead",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "content": "## 🧠 V4.0 Memória SDR\nConsulta histórico do lead antes da IA decidir e atualiza o estado depois.\n\nRegra central: a IA ajuda o cliente a escolher imóvel. Corretor só entra depois de imóvel escolhido/referência clara.",
+        "height": 220,
+        "width": 676,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1936,
+        704
+      ],
+      "id": "06910a2c-0e85-498c-aacb-0b8035c79903",
+      "name": "🧠 V4.0 Memória + Trava Corretor"
+    },
+    {
+      "parameters": {
+        "content": "## 🧾 LGPD\nEste caminho termina aqui de propósito.\n\n1. A IA identifica que já existe imóvel escolhido/referência.\n2. Este node envia o pedido de autorização LGPD.\n3. O workflow para e aguarda a próxima mensagem do cliente.\n4. Quando o cliente responder SIM/autorizo + dados, a nova mensagem entra pelo Webhook e segue para ANÁLISE_CREDITO.\n\nImportante: não conectar esse node direto na análise, porque a autorização precisa vir em uma nova mensagem do cliente.",
+        "height": 460,
+        "width": 884,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        352,
+        1056
+      ],
+      "id": "35666515-08b9-4a65-9332-8775da38560f",
+      "name": "🧾 LGPD - Execução pausa aqui"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Config Cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Message a model5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Preparar Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request10",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request5": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model4": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request8": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model5": {
+      "main": [
+        [
+          {
+            "node": "Salvar nome",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar nome": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar WAHA": {
+      "main": [
+        [
+          {
+            "node": "WAHA Working?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WAHA Working?": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request8",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Restart WAHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restart WAHA": {
+      "main": [
+        [
+          {
+            "node": "Aguardar 10s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aguardar 10s": {
+      "main": [
+        [
+          {
+            "node": "Verificar WAHA Novamente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar WAHA Novamente": {
+      "main": [
+        [
+          {
+            "node": "WAHA Voltou?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WAHA Voltou?": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request8",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notificar Dev Suporte",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notificar Dev Suporte": {
+      "main": [
+        [
+          {
+            "node": "Notificar Corretor -Manual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Lead": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Salvar Lead Inicial",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config Cliente": {
+      "main": [
+        [
+          {
+            "node": "Verificar WAHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Etapa do Lead": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Upsert Memória do Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Etapa Inteligente": {
+      "main": [
+        [
+          {
+            "node": "Extrair Filtros para Busca Inteligente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Supabase - Consultar Base Conhecimento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pedir Perfil e Escolha do Imovel",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar LGPD ao Lead - Aguardar Resposta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Analisar Perfil Financeiro / Credito",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Message a model4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request5",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request9",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analisar Perfil Financeiro / Credito": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Analise Credito",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Analise Credito": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Atualizar Lead Qualificado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notificar Gerente - Lead Qualificado": {
+      "main": [
+        [
+          {
+            "node": "Responder Pos Analise ao Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder Pos Analise ao Lead": {
+      "main": [
+        [
+          {
+            "node": "Enviar Voz WAHA - OPCIONAL precisa TTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Salvar Lead Inicial": {
+      "main": [
+        [
+          {
+            "node": "Mesclar ID Lead Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mesclar ID Lead Supabase": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Buscar Memória do Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Atualizar Lead Qualificado": {
+      "main": [
+        [
+          {
+            "node": "Notificar Gerente - Lead Qualificado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair Filtros para Busca Inteligente": {
+      "main": [
+        [
+          {
+            "node": "Preparar URLs - Busca Inteligente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar URLs - Busca Inteligente": {
+      "main": [
+        [
+          {
+            "node": "Ler Site / Sitemap - Busca Inteligente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Site / Sitemap - Busca Inteligente": {
+      "main": [
+        [
+          {
+            "node": "Extrair Imóveis do HTML/Sitemap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair Imóveis do HTML/Sitemap": {
+      "main": [
+        [
+          {
+            "node": "Selecionar Melhores Imóveis com IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Selecionar Melhores Imóveis com IA": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Resposta da Busca Inteligente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Resposta da Busca Inteligente": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Salvar Opções Encontradas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Salvar Opções Encontradas": {
+      "main": [
+        [
+          {
+            "node": "Enviar Opções Encontradas ao Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IA Orquestradora - Decidir Ação com Tools": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Etapa do Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Consultar Base Conhecimento": {
+      "main": [
+        [
+          {
+            "node": "Selecionar Resposta da Base Conhecimento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Selecionar Resposta da Base Conhecimento": {
+      "main": [
+        [
+          {
+            "node": "Responder com Base de Conhecimento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder com Base de Conhecimento": {
+      "main": [
+        [
+          {
+            "node": "Enviar Resposta da Base ao Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Buscar Memória do Lead": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Memória do Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Memória do Lead": {
+      "main": [
+        [
+          {
+            "node": "IA Orquestradora - Decidir Ação com Tools",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Upsert Memória do Lead": {
+      "main": [
+        [
+          {
+            "node": "Switch Etapa Inteligente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "88e1e862-3a69-427f-a0b6-e9cb95da2626",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "",
+  "tags": []
+}

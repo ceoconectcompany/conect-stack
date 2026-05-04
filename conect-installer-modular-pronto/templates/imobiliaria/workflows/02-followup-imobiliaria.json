@@ -1,0 +1,440 @@
+{
+  "name": "[V4.1] Follow-up AntiBan Imobiliária - 2h e 24h",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -2200,
+        300
+      ],
+      "id": "f21f6726-7d1d-4dfe-bfc5-7e8690d9c5b9",
+      "name": "Schedule Trigger - AntiBan FollowUp"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: {\n  // =====================================================\n  // CONFIG FOLLOW-UP ANTI-BAN - edite por cliente\n  // =====================================================\n  imobiliaria: \"NOME_DA_IMOBILIARIA\",\n  supabase_url: \"SUA_SUPABASE_URL\",\n  supabase_anon_key: \"SUA_SUPABASE_ANON_KEY\",\n  tabela_memoria: \"leads_memoria_imobiliaria\",\n  tabela_followups: \"followups_imobiliaria\",\n\n  // WAHA\n  waha_url: \"http://waha:3000\",\n  session: \"default\",\n  waha_api_key: \"SUA_API_KEY_WAHA\",\n\n  // Anti-ban\n  timezone: \"America/Asuncion\",\n  horario_inicio: 8,\n  horario_fim: 19,\n  max_envios_por_rodada: 8,\n  delay_min_segundos: 35,\n  delay_max_segundos: 95,\n  intervalo_base_por_lead_segundos: 75,\n\n  // Follow-ups ativos\n  enviar_followup_2h: true,\n  enviar_followup_24h: true,\n  enviar_followup_3d: false,\n\n  // Palavras de bloqueio/opt-out\n  palavras_bloqueio: [\"parar\", \"cancelar\", \"não quero\", \"nao quero\", \"remover\", \"sair\", \"stop\", \"sem interesse\", \"já resolvi\", \"ja resolvi\"],\n\n  // Mensagens-base. O Code personaliza usando a memória do lead.\n  mensagem_2h_generica: \"Conseguiu ver as opções que te mandei? Se quiser, posso te mostrar outras opções também 👌\",\n  mensagem_24h_generica: \"Oi! Passando só pra saber se você ainda está procurando imóvel ou se já resolveu 😊\"\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1980,
+        300
+      ],
+      "id": "b7757212-e75e-48b7-bb0c-bc037b798b29",
+      "name": "Config FollowUp"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ (() => { const cfg=$('Config FollowUp').first().json; const cutoff=new Date(Date.now()-2*60*60*1000).toISOString(); return `${cfg.supabase_url}/rest/v1/${cfg.tabela_memoria}?select=*&imobiliaria=eq.${encodeURIComponent(cfg.imobiliaria)}&followup_1_enviado=eq.false&updated_at=lt.${encodeURIComponent(cutoff)}&order=updated_at.asc&limit=50`; })() }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"apikey\": \"{{ $('Config FollowUp').first().json.supabase_anon_key }}\",\n  \"Authorization\": \"Bearer {{ $('Config FollowUp').first().json.supabase_anon_key }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1740,
+        160
+      ],
+      "id": "20c43f7d-70ed-4c88-be93-fa9f98a07b6c",
+      "name": "Buscar Leads FollowUp 2h",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst cfg = $('Config FollowUp').first().json;\nconst tipo = 'FOLLOWUP_2H';\nconst minHours = tipo === 'FOLLOWUP_24H' ? 24 : 2;\nconst flag = tipo === 'FOLLOWUP_24H' ? 'followup_24h_enviado' : 'followup_1_enviado';\nconst now = new Date();\n\nfunction hourInTZ(tz) {\n  return Number(new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', hour12: false }).format(new Date()));\n}\nfunction norm(s) {\n  return String(s || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase();\n}\nfunction hasBlockWords(lead) {\n  const blob = norm(`${lead.resumo_conversa || ''} ${lead.ultimo_motivo || ''} ${lead.ultima_acao || ''} ${lead.etapa_funil || ''}`);\n  return (cfg.palavras_bloqueio || []).some(p => blob.includes(norm(p)));\n}\nfunction diffHours(dateStr) {\n  const d = new Date(dateStr || 0);\n  return (now - d) / (1000 * 60 * 60);\n}\nfunction buildMsg(lead) {\n  const nome = lead.nome && !['nao_informado','não informado'].includes(norm(lead.nome)) ? `${lead.nome.split(' ')[0]}, ` : '';\n  const tipoImovel = lead.tipo_imovel && !['indefinido','nao_informado'].includes(norm(lead.tipo_imovel)) ? lead.tipo_imovel : '';\n  const bairro = lead.bairro && !['indefinido','nao_informado'].includes(norm(lead.bairro)) ? lead.bairro : '';\n  const cidade = lead.cidade || '';\n\n  if (tipo === 'FOLLOWUP_2H') {\n    if (tipoImovel || bairro || cidade) {\n      return `${nome}conseguiu ver as opções${tipoImovel ? ' de ' + tipoImovel : ''}${bairro ? ' no ' + bairro : ''}${cidade ? ' em ' + cidade : ''}? Se quiser, posso te mostrar outras opções também 👌`;\n    }\n    return `${nome}${cfg.mensagem_2h_generica}`;\n  }\n\n  if (tipoImovel || bairro || cidade) {\n    return `${nome}passando só pra saber se você ainda está procurando${tipoImovel ? ' ' + tipoImovel : ' imóvel'}${bairro ? ' no ' + bairro : ''}${cidade ? ' em ' + cidade : ''} ou se já resolveu 😊`;\n  }\n  return `${nome}${cfg.mensagem_24h_generica}`;\n}\n\nconst currentHour = hourInTZ(cfg.timezone || 'America/Asuncion');\nconst start = Number(cfg.horario_inicio ?? 8);\nconst end = Number(cfg.horario_fim ?? 19);\nif (currentHour < start || currentHour >= end) return [];\n\nlet leads = $input.all().flatMap(i => Array.isArray(i.json) ? i.json.map(x => ({ json: x })) : [i]);\nconst etapasBloqueadas = ['FINALIZADO','CORRETOR','ATENDIMENTO_MANUAL','NEGOCIACAO','NEGOCIAÇÃO','CLIENTE','DESCADASTRADO','SEM_INTERESSE'];\n\nleads = leads\n  .map(i => i.json)\n  .filter(l => l && l.id && l.telefone)\n  .filter(l => !l.optout)\n  .filter(l => !l[flag])\n  .filter(l => diffHours(l.updated_at) >= minHours)\n  .filter(l => !l.ultimo_followup_em || diffHours(l.ultimo_followup_em) >= (tipo === 'FOLLOWUP_24H' ? 20 : 1.5))\n  .filter(l => !etapasBloqueadas.includes(String(l.etapa_funil || '').toUpperCase()))\n  .filter(l => !hasBlockWords(l))\n  .slice(0, Number(cfg.max_envios_por_rodada || 8));\n\nreturn leads.map((lead, index) => {\n  const rand = Math.floor(Number(cfg.delay_min_segundos || 35) + Math.random() * (Number(cfg.delay_max_segundos || 95) - Number(cfg.delay_min_segundos || 35)));\n  const delay = index * Number(cfg.intervalo_base_por_lead_segundos || 75) + rand;\n  return {\n    json: {\n      ...lead,\n      tipo_followup: tipo,\n      mensagem_followup: buildMsg(lead),\n      delay_segundos: delay,\n      antiban_status: 'aprovado',\n      antiban_motivo: `Dentro da janela, sem opt-out, etapa aberta, ${minHours}h+ sem atualização`,\n      enviado_por: cfg.session\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1500,
+        160
+      ],
+      "id": "ca4e2191-dcc0-45d4-ae47-a8c4b5ad3022",
+      "name": "AntiBan + Mensagem 2h"
+    },
+    {
+      "parameters": {
+        "amount": "={{ $json.delay_segundos }}",
+        "unit": "seconds"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -1260,
+        160
+      ],
+      "id": "eeaae52a-c82a-4418-949c-4d0189da5990",
+      "name": "Delay Humano 2h"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($('Config FollowUp').first().json.waha_url || 'http://waha:3000') + '/api/sendText' }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"X-Api-Key\": \"{{ $('Config FollowUp').first().json.waha_api_key }}\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { session: $('Config FollowUp').first().json.session, chatId: $json.telefone, text: $json.mensagem_followup } }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1020,
+        160
+      ],
+      "id": "5c2e14f6-a47f-456f-bf55-fa6136f5f04d",
+      "name": "Enviar FollowUp 2h - WAHA",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Config FollowUp').first().json.supabase_url + '/rest/v1/' + $('Config FollowUp').first().json.tabela_memoria + '?id=eq.' + $json.id }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"apikey\": \"{{ $('Config FollowUp').first().json.supabase_anon_key }}\",\n  \"Authorization\": \"Bearer {{ $('Config FollowUp').first().json.supabase_anon_key }}\",\n  \"Content-Type\": \"application/json\",\n  \"Prefer\": \"return=representation\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { followup_1_enviado: true, ultimo_followup_em: new Date().toISOString(), qtd_followups_enviados: Number($json.qtd_followups_enviados || 0) + 1, updated_at: new Date().toISOString() } }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -780,
+        160
+      ],
+      "id": "d61a637e-7403-4be0-a3a4-95bee5aa5961",
+      "name": "Marcar FollowUp 2h Enviado",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config FollowUp').first().json.supabase_url + '/rest/v1/' + $('Config FollowUp').first().json.tabela_followups }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"apikey\": \"{{ $('Config FollowUp').first().json.supabase_anon_key }}\",\n  \"Authorization\": \"Bearer {{ $('Config FollowUp').first().json.supabase_anon_key }}\",\n  \"Content-Type\": \"application/json\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { imobiliaria: $json.imobiliaria, telefone: $json.telefone, tipo_followup: 'FOLLOWUP_2H', mensagem: $json.mensagem_followup || 'follow-up enviado', status: 'enviado', enviado_em: new Date().toISOString() } }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -540,
+        160
+      ],
+      "id": "449305fd-9226-4409-ab1e-8eba1c937de1",
+      "name": "Registrar Log 2h",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ (() => { const cfg=$('Config FollowUp').first().json; const cutoff=new Date(Date.now()-24*60*60*1000).toISOString(); return `${cfg.supabase_url}/rest/v1/${cfg.tabela_memoria}?select=*&imobiliaria=eq.${encodeURIComponent(cfg.imobiliaria)}&followup_1_enviado=eq.true&followup_24h_enviado=eq.false&updated_at=lt.${encodeURIComponent(cutoff)}&order=updated_at.asc&limit=50`; })() }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"apikey\": \"{{ $('Config FollowUp').first().json.supabase_anon_key }}\",\n  \"Authorization\": \"Bearer {{ $('Config FollowUp').first().json.supabase_anon_key }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1740,
+        460
+      ],
+      "id": "1fb4f7fd-e516-4ee6-aef4-444da614cbd9",
+      "name": "Buscar Leads FollowUp 24h",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst cfg = $('Config FollowUp').first().json;\nconst tipo = 'FOLLOWUP_24H';\nconst minHours = tipo === 'FOLLOWUP_24H' ? 24 : 2;\nconst flag = tipo === 'FOLLOWUP_24H' ? 'followup_24h_enviado' : 'followup_1_enviado';\nconst now = new Date();\n\nfunction hourInTZ(tz) {\n  return Number(new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', hour12: false }).format(new Date()));\n}\nfunction norm(s) {\n  return String(s || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase();\n}\nfunction hasBlockWords(lead) {\n  const blob = norm(`${lead.resumo_conversa || ''} ${lead.ultimo_motivo || ''} ${lead.ultima_acao || ''} ${lead.etapa_funil || ''}`);\n  return (cfg.palavras_bloqueio || []).some(p => blob.includes(norm(p)));\n}\nfunction diffHours(dateStr) {\n  const d = new Date(dateStr || 0);\n  return (now - d) / (1000 * 60 * 60);\n}\nfunction buildMsg(lead) {\n  const nome = lead.nome && !['nao_informado','não informado'].includes(norm(lead.nome)) ? `${lead.nome.split(' ')[0]}, ` : '';\n  const tipoImovel = lead.tipo_imovel && !['indefinido','nao_informado'].includes(norm(lead.tipo_imovel)) ? lead.tipo_imovel : '';\n  const bairro = lead.bairro && !['indefinido','nao_informado'].includes(norm(lead.bairro)) ? lead.bairro : '';\n  const cidade = lead.cidade || '';\n\n  if (tipo === 'FOLLOWUP_2H') {\n    if (tipoImovel || bairro || cidade) {\n      return `${nome}conseguiu ver as opções${tipoImovel ? ' de ' + tipoImovel : ''}${bairro ? ' no ' + bairro : ''}${cidade ? ' em ' + cidade : ''}? Se quiser, posso te mostrar outras opções também 👌`;\n    }\n    return `${nome}${cfg.mensagem_2h_generica}`;\n  }\n\n  if (tipoImovel || bairro || cidade) {\n    return `${nome}passando só pra saber se você ainda está procurando${tipoImovel ? ' ' + tipoImovel : ' imóvel'}${bairro ? ' no ' + bairro : ''}${cidade ? ' em ' + cidade : ''} ou se já resolveu 😊`;\n  }\n  return `${nome}${cfg.mensagem_24h_generica}`;\n}\n\nconst currentHour = hourInTZ(cfg.timezone || 'America/Asuncion');\nconst start = Number(cfg.horario_inicio ?? 8);\nconst end = Number(cfg.horario_fim ?? 19);\nif (currentHour < start || currentHour >= end) return [];\n\nlet leads = $input.all().flatMap(i => Array.isArray(i.json) ? i.json.map(x => ({ json: x })) : [i]);\nconst etapasBloqueadas = ['FINALIZADO','CORRETOR','ATENDIMENTO_MANUAL','NEGOCIACAO','NEGOCIAÇÃO','CLIENTE','DESCADASTRADO','SEM_INTERESSE'];\n\nleads = leads\n  .map(i => i.json)\n  .filter(l => l && l.id && l.telefone)\n  .filter(l => !l.optout)\n  .filter(l => !l[flag])\n  .filter(l => diffHours(l.updated_at) >= minHours)\n  .filter(l => !l.ultimo_followup_em || diffHours(l.ultimo_followup_em) >= (tipo === 'FOLLOWUP_24H' ? 20 : 1.5))\n  .filter(l => !etapasBloqueadas.includes(String(l.etapa_funil || '').toUpperCase()))\n  .filter(l => !hasBlockWords(l))\n  .slice(0, Number(cfg.max_envios_por_rodada || 8));\n\nreturn leads.map((lead, index) => {\n  const rand = Math.floor(Number(cfg.delay_min_segundos || 35) + Math.random() * (Number(cfg.delay_max_segundos || 95) - Number(cfg.delay_min_segundos || 35)));\n  const delay = index * Number(cfg.intervalo_base_por_lead_segundos || 75) + rand;\n  return {\n    json: {\n      ...lead,\n      tipo_followup: tipo,\n      mensagem_followup: buildMsg(lead),\n      delay_segundos: delay,\n      antiban_status: 'aprovado',\n      antiban_motivo: `Dentro da janela, sem opt-out, etapa aberta, ${minHours}h+ sem atualização`,\n      enviado_por: cfg.session\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1500,
+        460
+      ],
+      "id": "0e16f35d-00c0-4354-86fb-06781e38f56f",
+      "name": "AntiBan + Mensagem 24h"
+    },
+    {
+      "parameters": {
+        "amount": "={{ $json.delay_segundos }}",
+        "unit": "seconds"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -1260,
+        460
+      ],
+      "id": "aee2c1fd-5fa2-4a1b-8fdd-00bf9dad1163",
+      "name": "Delay Humano 24h"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($('Config FollowUp').first().json.waha_url || 'http://waha:3000') + '/api/sendText' }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"X-Api-Key\": \"{{ $('Config FollowUp').first().json.waha_api_key }}\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { session: $('Config FollowUp').first().json.session, chatId: $json.telefone, text: $json.mensagem_followup } }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1020,
+        460
+      ],
+      "id": "6aa1cb58-7293-4eb5-8d4d-899a355e404d",
+      "name": "Enviar FollowUp 24h - WAHA",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Config FollowUp').first().json.supabase_url + '/rest/v1/' + $('Config FollowUp').first().json.tabela_memoria + '?id=eq.' + $json.id }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"apikey\": \"{{ $('Config FollowUp').first().json.supabase_anon_key }}\",\n  \"Authorization\": \"Bearer {{ $('Config FollowUp').first().json.supabase_anon_key }}\",\n  \"Content-Type\": \"application/json\",\n  \"Prefer\": \"return=representation\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { followup_24h_enviado: true, ultimo_followup_em: new Date().toISOString(), qtd_followups_enviados: Number($json.qtd_followups_enviados || 0) + 1, updated_at: new Date().toISOString() } }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -780,
+        460
+      ],
+      "id": "c49428da-3076-409a-9eff-7e6127536b7c",
+      "name": "Marcar FollowUp 24h Enviado",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config FollowUp').first().json.supabase_url + '/rest/v1/' + $('Config FollowUp').first().json.tabela_followups }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"apikey\": \"{{ $('Config FollowUp').first().json.supabase_anon_key }}\",\n  \"Authorization\": \"Bearer {{ $('Config FollowUp').first().json.supabase_anon_key }}\",\n  \"Content-Type\": \"application/json\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { imobiliaria: $json.imobiliaria, telefone: $json.telefone, tipo_followup: 'FOLLOWUP_24H', mensagem: $json.mensagem_followup || 'follow-up enviado', status: 'enviado', enviado_em: new Date().toISOString() } }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -540,
+        460
+      ],
+      "id": "011cb615-abe9-4470-b7ad-64b5196a7543",
+      "name": "Registrar Log 24h",
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger - AntiBan FollowUp": {
+      "main": [
+        [
+          {
+            "node": "Config FollowUp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config FollowUp": {
+      "main": [
+        [
+          {
+            "node": "Buscar Leads FollowUp 2h",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Buscar Leads FollowUp 24h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Leads FollowUp 2h": {
+      "main": [
+        [
+          {
+            "node": "AntiBan + Mensagem 2h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AntiBan + Mensagem 2h": {
+      "main": [
+        [
+          {
+            "node": "Delay Humano 2h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delay Humano 2h": {
+      "main": [
+        [
+          {
+            "node": "Enviar FollowUp 2h - WAHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar FollowUp 2h - WAHA": {
+      "main": [
+        [
+          {
+            "node": "Marcar FollowUp 2h Enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar FollowUp 2h Enviado": {
+      "main": [
+        [
+          {
+            "node": "Registrar Log 2h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Leads FollowUp 24h": {
+      "main": [
+        [
+          {
+            "node": "AntiBan + Mensagem 24h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AntiBan + Mensagem 24h": {
+      "main": [
+        [
+          {
+            "node": "Delay Humano 24h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delay Humano 24h": {
+      "main": [
+        [
+          {
+            "node": "Enviar FollowUp 24h - WAHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar FollowUp 24h - WAHA": {
+      "main": [
+        [
+          {
+            "node": "Marcar FollowUp 24h Enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar FollowUp 24h Enviado": {
+      "main": [
+        [
+          {
+            "node": "Registrar Log 24h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "versionId": "0efbc0ce-d339-488d-be40-64360afc46f6",
+  "triggerCount": 1,
+  "tags": [],
+  "active": false,
+  "id": "",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

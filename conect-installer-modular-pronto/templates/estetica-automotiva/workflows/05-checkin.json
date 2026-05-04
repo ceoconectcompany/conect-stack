@@ -1,0 +1,747 @@
+{
+  "name": "05 - AUTOMOTIVO - Check-in Chegou Faltou Supabase TEMPLATE",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## WORKFLOW 05 — CHECK-IN OPERACIONAL\n\nResponsabilidade única:\n- Receber comando do responsável\n- Comando CHEGOU: marcar cliente como compareceu\n- Comando FALTOU: marcar cliente como faltou\n- Atualizar agendamento no Supabase\n- Responder confirmação ao responsável\n\nIsso alimenta métrica de presença/falta no relatório.",
+        "height": 320,
+        "width": 500,
+        "color": 4
+      },
+      "id": "07b53f59-eeea-4ad3-bb27-36e9a59b41f5",
+      "name": "POST-IT 01 - Objetivo",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1120,
+        -500
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Comandos aceitos\n\nO responsável responde no WhatsApp:\n\nCHEGOU\nou\nFALTOU\n\nOpcionalmente pode enviar com ID:\nCHEGOU AUTO_ID\nFALTOU AUTO_ID\n\nSe não tiver ID, o sistema pega o agendamento confirmado mais próximo.",
+        "height": 300,
+        "width": 500,
+        "color": 5
+      },
+      "id": "56659b34-9357-4435-bc32-e42a119bef3e",
+      "name": "POST-IT 02 - Comandos aceitos",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -540,
+        -500
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ATENÇÃO\n\nAntes de usar, rode o SQL extra no Supabase:\n\n- checkin_at\n- faltou_at\n- resultado_operacional\n\nO SQL está na resposta junto com o arquivo.",
+        "height": 240,
+        "width": 460,
+        "color": 3
+      },
+      "id": "c4271933-2d0b-4332-8cac-9043eb741542",
+      "name": "POST-IT 03 - SQL extra obrigatório",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        40,
+        -500
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "automotivo-checkin-responsavel",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "35be3f12-9880-4d2d-b67b-b1319a4e19c1",
+      "name": "Webhook WAHA - Check-in Responsável",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1120,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===================================================\n// CONFIG CLIENTE — TEMPLATE GENÉRICO PARA VENDA\n// ===================================================\nconst config = {\n  empresa: {\n    nome: \"NOME_DO_CLIENTE\",\n    cidade: \"CIDADE_DO_CLIENTE\",\n    telefone_responsavel: \"55DDDNUMERO\",\n    waha_base_url: \"http://IP_DA_VPS:3000\",\n    waha_api_key: \"SUA_WAHA_API_KEY\",\n    session: \"default\"\n  },\n\n  supabase: {\n    url: \"https://SEU_PROJECT_REF.supabase.co\",\n    service_role_key: \"SUA_SUPABASE_SERVICE_ROLE_KEY\"\n  },\n\n  atendimento: {\n    timezone: \"America/Campo_Grande\"\n  }\n};\n\nreturn [{ json: { raw: $json, config } }];"
+      },
+      "id": "aaf4acff-513a-4758-b9c5-874088ef5e96",
+      "name": "01 - CONFIG CLIENTE",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -860,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "function digits(v) {\n  return String(v || \"\").replace(/\\D/g, \"\");\n}\n\nfunction txt(v) {\n  return String(v || \"\").trim();\n}\n\nconst raw = $json.raw || {};\nconst config = $json.config;\n\nconst incoming = {\n  from: digits(raw.from || raw.body?.from || raw.payload?.from || raw.sender || raw.chatId || raw.key?.remoteJid),\n  body: txt(raw.body?.body || raw.body?.text || raw.body || raw.text || raw.message || raw.payload?.body || raw.payload?.text || raw.message?.body),\n  pushName: txt(raw.pushName || raw.body?.pushName || raw._data?.notifyName || raw.name || \"\")\n};\n\nreturn [{ json: { config, incoming } }];"
+      },
+      "id": "b705389a-0ebd-4aeb-a907-766ec03fdd6a",
+      "name": "02 - Normalizar Entrada WAHA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -600,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "is-owner",
+              "leftValue": "={{ $json.incoming.from }}",
+              "rightValue": "={{ $json.config.empresa.telefone_responsavel.replace(/\\D/g, '') }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b6b84c0e-3dca-42ae-a421-ac148934ce89",
+      "name": "03 - IF É Responsável?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -340,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = String($json.incoming.body || \"\").trim();\nconst upper = msg.toUpperCase();\n\nlet comando = \"\";\nif (upper.startsWith(\"CHEGOU\")) comando = \"CHEGOU\";\nif (upper.startsWith(\"FALTOU\")) comando = \"FALTOU\";\n\n// Tenta pegar UUID do agendamento se o dono mandar junto.\n// Exemplo: CHEGOU 550e8400-e29b-41d4-a716-446655440000\nconst uuidMatch = msg.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);\nconst agendamento_id = uuidMatch ? uuidMatch[0] : \"\";\n\nreturn [{ json: { ...$json, comando, agendamento_id } }];"
+      },
+      "id": "477e244d-be5a-4563-8ca8-b47170815422",
+      "name": "04 - Identificar Comando",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cmd-chegou",
+              "leftValue": "={{ $json.comando }}",
+              "rightValue": "CHEGOU",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "cmd-faltou",
+              "leftValue": "={{ $json.comando }}",
+              "rightValue": "FALTOU",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "af29a16a-e66d-48ba-8f2a-4fe157f35c90",
+      "name": "05 - IF Comando Válido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        180,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "has-id",
+              "leftValue": "={{ $json.agendamento_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "29ee8e88-7984-4b51-bb82-5337a74bcbff",
+      "name": "06 - IF Tem ID?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.config.supabase.url + '/rest/v1/agendamentos?id=eq.' + $json.agendamento_id + '&select=*' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $json.config.supabase.service_role_key }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $json.config.supabase.service_role_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "676d1b3f-a39a-416e-b1da-21d6e94c06fb",
+      "name": "07A - Supabase Buscar por ID",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.config.supabase.url + '/rest/v1/agendamentos?status=eq.CONFIRMADO&order=created_at.desc&limit=10&select=*' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $json.config.supabase.service_role_key }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $json.config.supabase.service_role_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "12d38189-7b3a-4872-90ab-a054de2989bd",
+      "name": "07B - Supabase Buscar Confirmado Mais Próximo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "function parseDateBr(dateBr, time) {\n  if (!dateBr || !time) return null;\n  const parts = String(dateBr).split(\"/\");\n  if (parts.length !== 3) return null;\n  const [dd, mm, yyyy] = parts;\n  const [hh, min] = String(time).split(\":\");\n  return new Date(Number(yyyy), Number(mm) - 1, Number(dd), Number(hh || 0), Number(min || 0), 0);\n}\n\nlet previous;\ntry {\n  previous = $item(0).$node[\"06 - IF Tem ID?\"].json;\n} catch (e) {\n  previous = $item(0).$node[\"05 - IF Comando Válido?\"].json;\n}\n\nconst rows = Array.isArray($json) ? $json : [];\nlet agendamento = rows[0] || null;\n\n// Se veio lista sem ID, tenta escolher o agendamento confirmado mais próximo do horário atual.\nif (!previous.agendamento_id && rows.length) {\n  const now = new Date();\n\n  const ranked = rows\n    .map(ag => {\n      const dataBase = ag.data_confirmada || ag.data_desejada || \"\";\n      const horaBase = ag.hora_confirmada || ag.hora_desejada || \"\";\n      const dt = parseDateBr(dataBase, horaBase);\n      const diffAbs = dt ? Math.abs(dt.getTime() - now.getTime()) : Number.MAX_SAFE_INTEGER;\n      return { ag, diffAbs };\n    })\n    .sort((a, b) => a.diffAbs - b.diffAbs);\n\n  agendamento = ranked[0]?.ag || rows[0] || null;\n}\n\nreturn [{ json: { ...previous, agendamento } }];"
+      },
+      "id": "18b88d99-da0d-40b3-9d27-f632e9acc8b1",
+      "name": "08 - Escolher Agendamento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "found",
+              "leftValue": "={{ $json.agendamento?.id || '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "beb34bd9-77a5-4fa4-8043-d1a6e0df1445",
+      "name": "09 - IF Achou Agendamento?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const comando = $json.comando;\nconst ag = $json.agendamento;\n\nconst body = {\n  updated_at: new Date().toISOString()\n};\n\nlet text = \"\";\n\nif (comando === \"CHEGOU\") {\n  body.status = \"CLIENTE_CHEGOU\";\n  body.resultado_operacional = \"CHEGOU\";\n  body.checkin_at = new Date().toISOString();\n\n  text = `✅ Check-in registrado!\n\nStatus: CLIENTE CHEGOU\n\nCliente: ${ag.cliente_nome || \"Não informado\"}\nWhatsApp: https://wa.me/${ag.cliente_telefone}\nServiço: ${ag.servico_nome}\nVeículo: ${ag.veiculo}\nHorário: ${ag.data_confirmada || ag.data_desejada} às ${ag.hora_confirmada || ag.hora_desejada}`;\n}\n\nif (comando === \"FALTOU\") {\n  body.status = \"CLIENTE_FALTOU\";\n  body.resultado_operacional = \"FALTOU\";\n  body.faltou_at = new Date().toISOString();\n\n  text = `❌ Falta registrada!\n\nStatus: CLIENTE FALTOU\n\nCliente: ${ag.cliente_nome || \"Não informado\"}\nWhatsApp: https://wa.me/${ag.cliente_telefone}\nServiço: ${ag.servico_nome}\nVeículo: ${ag.veiculo}\nHorário: ${ag.data_confirmada || ag.data_desejada} às ${ag.hora_confirmada || ag.hora_desejada}`;\n}\n\nreturn [{ json: { ...$json, supabase_body: body, destino: \"responsavel\", text } }];"
+      },
+      "id": "4a3e30e9-3eb2-40ea-b378-9d9a1b73414a",
+      "name": "10 - Preparar Update Operacional",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $json.config.supabase.url + '/rest/v1/agendamentos?id=eq.' + $json.agendamento.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $json.config.supabase.service_role_key }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $json.config.supabase.service_role_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "options": {},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.supabase_body) }}"
+      },
+      "id": "e2fab97e-3811-4449-bdc1-866104fb2e17",
+      "name": "11 - Supabase Atualizar Agendamento",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1780,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const previous = $item(0).$node[\"10 - Preparar Update Operacional\"].json;\nreturn [{ json: previous }];"
+      },
+      "id": "90d01c44-bd1a-48ce-8b1c-4179e0738842",
+      "name": "12 - Restaurar Confirmação",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2040,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = `Não encontrei um agendamento confirmado para marcar como ${$json.comando}.\n\nDica:\nEnvie CHEGOU ou FALTOU logo após o lembrete de 30 minutos.\n\nSe quiser marcar um agendamento específico, envie:\nCHEGOU ID_DO_AGENDAMENTO\nou\nFALTOU ID_DO_AGENDAMENTO`;\n\nreturn [{ json: { ...$json, destino: \"responsavel\", text } }];"
+      },
+      "id": "5ee7ff8b-8da7-4c0f-918a-530a1a06e430",
+      "name": "10B - Agendamento Não Encontrado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = `Comando não entendido.\n\nUse apenas:\nCHEGOU\nou\nFALTOU\n\nEsses comandos servem para registrar se o cliente compareceu ao agendamento.`;\n\nreturn [{ json: { ...$json, destino: \"responsavel\", text } }];"
+      },
+      "id": "4286bfe4-c55c-4d5d-b408-77c5883bcf3c",
+      "name": "06B - Comando Inválido",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    ...$json,\n    destino: \"cliente\",\n    text: \"Este canal é usado para controle interno de agendamentos.\"\n  }\n}];"
+      },
+      "id": "09f5fb12-47f3-4c3c-8dff-84c019a6c696",
+      "name": "04B - Não é Responsável",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $json.config;\nconst destino = $json.destino || \"responsavel\";\nconst chatId = destino === \"responsavel\" ? config.empresa.telefone_responsavel : $json.incoming.from;\n\nreturn [{\n  json: {\n    action: \"send\",\n    waha_base_url: config.empresa.waha_base_url,\n    waha_api_key: config.empresa.waha_api_key,\n    session: config.empresa.session,\n    chatId,\n    text: $json.text\n  }\n}];"
+      },
+      "id": "4876aa74-ebef-4a29-8193-d473972f1e08",
+      "name": "13 - Preparar Envio WAHA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2300,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.waha_base_url + '/api/sendText' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{ $json.waha_api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ session: $json.session, chatId: String($json.chatId).replace(/\\D/g, '') + '@c.us', text: $json.text }) }}",
+        "options": {}
+      },
+      "id": "3f5a98b3-09ed-4370-bf1a-aa1aa041ae22",
+      "name": "14 - WAHA Enviar Resposta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2560,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, status: 'processed' } }}",
+        "options": {}
+      },
+      "id": "7e7f29fa-03e2-4c75-a2d4-8dc7018acb70",
+      "name": "15 - Responder Webhook OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2820,
+        -80
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook WAHA - Check-in Responsável": {
+      "main": [
+        [
+          {
+            "node": "01 - CONFIG CLIENTE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01 - CONFIG CLIENTE": {
+      "main": [
+        [
+          {
+            "node": "02 - Normalizar Entrada WAHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 - Normalizar Entrada WAHA": {
+      "main": [
+        [
+          {
+            "node": "03 - IF É Responsável?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 - IF É Responsável?": {
+      "main": [
+        [
+          {
+            "node": "04 - Identificar Comando",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "04B - Não é Responsável",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 - Identificar Comando": {
+      "main": [
+        [
+          {
+            "node": "05 - IF Comando Válido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05 - IF Comando Válido?": {
+      "main": [
+        [
+          {
+            "node": "06 - IF Tem ID?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "06B - Comando Inválido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06 - IF Tem ID?": {
+      "main": [
+        [
+          {
+            "node": "07A - Supabase Buscar por ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "07B - Supabase Buscar Confirmado Mais Próximo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "07A - Supabase Buscar por ID": {
+      "main": [
+        [
+          {
+            "node": "08 - Escolher Agendamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "07B - Supabase Buscar Confirmado Mais Próximo": {
+      "main": [
+        [
+          {
+            "node": "08 - Escolher Agendamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08 - Escolher Agendamento": {
+      "main": [
+        [
+          {
+            "node": "09 - IF Achou Agendamento?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "09 - IF Achou Agendamento?": {
+      "main": [
+        [
+          {
+            "node": "10 - Preparar Update Operacional",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "10B - Agendamento Não Encontrado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10 - Preparar Update Operacional": {
+      "main": [
+        [
+          {
+            "node": "11 - Supabase Atualizar Agendamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11 - Supabase Atualizar Agendamento": {
+      "main": [
+        [
+          {
+            "node": "12 - Restaurar Confirmação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "12 - Restaurar Confirmação": {
+      "main": [
+        [
+          {
+            "node": "13 - Preparar Envio WAHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10B - Agendamento Não Encontrado": {
+      "main": [
+        [
+          {
+            "node": "13 - Preparar Envio WAHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06B - Comando Inválido": {
+      "main": [
+        [
+          {
+            "node": "13 - Preparar Envio WAHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04B - Não é Responsável": {
+      "main": [
+        [
+          {
+            "node": "13 - Preparar Envio WAHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "13 - Preparar Envio WAHA": {
+      "main": [
+        [
+          {
+            "node": "14 - WAHA Enviar Resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "14 - WAHA Enviar Resposta": {
+      "main": [
+        [
+          {
+            "node": "15 - Responder Webhook OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {},
+  "versionId": "783dc8aa-3f6f-4c35-8a93-8ab642505b06",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "",
+  "tags": []
+}
