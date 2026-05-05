@@ -1,207 +1,47 @@
 {
-  "name": "BASE - Ping WAHA + Telegram",
+  "id": "base_ping_waha",
+  "name": "BASE - Ping WAHA",
   "nodes": [
-    {
-      "parameters": {
-        "content": "## BASE — PING WAHA + TELEGRAM\n\nRoda a cada 2 minutos, testa se a API WAHA responde e avisa Telegram se falhar.",
-        "height": 220,
-        "width": 460,
-        "color": 4
-      },
-      "id": "2bba8c7d-15b0-4dd4-8d5a-5fd1ccccf875",
-      "name": "POST-IT - Objetivo",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        -900,
-        -280
-      ]
-    },
     {
       "parameters": {
         "rule": {
           "interval": [
             {
               "field": "minutes",
-              "minutesInterval": 2
+              "minutesInterval": 5
             }
           ]
         }
       },
-      "id": "96559d1a-a81a-4193-b450-9ebbf9ef6aa3",
-      "name": "Schedule - Ping WAHA",
+      "id": "schedule_ping",
+      "name": "Schedule",
       "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [
-        -900,
-        40
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// ===================================================\n// CONFIG BASE — MONITORAMENTO WAHA + TELEGRAM\n// Edite somente este node em cada cliente/servidor.\n// ===================================================\nconst config = {\n  servidor: {\n    nome: \"NOME_DO_CLIENTE_OU_VPS\",\n    ambiente: \"producao\"\n  },\n\n  waha: {\n    base_url: \"http://IP_DA_VPS:3000\",\n    api_key: \"SUA_WAHA_API_KEY\",\n    session: \"default\"\n  },\n\n  telegram: {\n    bot_token: \"SEU_BOT_TOKEN_TELEGRAM\",\n    chat_id: \"SEU_CHAT_ID_TELEGRAM\"\n  },\n\n  monitoramento: {\n    timezone: \"America/Campo_Grande\",\n    alertar_restart_ok: false,\n    aguardar_pos_restart_segundos: 15\n  }\n};\n\nreturn [{ json: { config, started_at: new Date().toISOString() } }];"
-      },
-      "id": "0ab265aa-42a2-43cd-bade-cc30197a832d",
-      "name": "01 - CONFIG BASE",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -640,
-        40
-      ]
+      "typeVersion": 1,
+      "position": [-300, 0]
     },
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ $json.config.waha.base_url + '/api/sessions' }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Api-Key",
-              "value": "={{ $json.config.waha.api_key }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "options": {
-          "timeout": 10000
-        }
-      },
-      "id": "6a6e7628-339c-417d-b24f-d5f930e96f3f",
-      "name": "02 - Ping WAHA API",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        -380,
-        40
-      ],
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "const previous = $item(0).$node[\"01 - CONFIG BASE\"].json;\nconst erro = $json.error || $json.message || $json.code || null;\nconst ok = !erro && Array.isArray($json);\nconst horario = new Date().toLocaleString(\"pt-BR\", { timeZone: previous.config.monitoramento.timezone });\nconst text = ok ? \"\" : `🚨 PING WAHA FALHOU\n\nServidor: ${previous.config.servidor.nome}\nAmbiente: ${previous.config.servidor.ambiente}\nWAHA: ${previous.config.waha.base_url}\nHorário: ${horario}\n\nResposta/erro:\n${JSON.stringify($json).slice(0, 1200)}\n\nAção: verificar WAHA, Docker e rede.`;\nreturn [{ json: { ...previous, ping_ok: ok, text } }];"
-      },
-      "id": "d34f57aa-6ebf-419a-8a35-cbc4a95c6c5b",
-      "name": "03 - Avaliar Ping",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -120,
-        40
-      ]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 1
-          },
-          "conditions": [
-            {
-              "id": "ping-falhou",
-              "leftValue": "={{ $json.ping_ok }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "notEqual"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
+        "url": "http://IP_DA_VPS:3000/api/sessions",
         "options": {}
       },
-      "id": "ce5678ae-49e3-4868-8656-e72c5e375a17",
-      "name": "04 - IF Ping Falhou?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        140,
-        40
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ 'https://api.telegram.org/bot' + $json.config.telegram.bot_token + '/sendMessage' }}",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ chat_id: $json.config.telegram.chat_id, text: $json.text }) }}",
-        "options": {}
-      },
-      "id": "d6f6e762-02b5-49c6-be65-031c599b3346",
-      "name": "05 - Telegram Avisar Ping Falhou",
+      "id": "http_ping",
+      "name": "Ping WAHA",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        420,
-        -40
-      ],
-      "onError": "continueRegularOutput"
+      "typeVersion": 4,
+      "position": [0, 0]
     }
   ],
   "connections": {
-    "Schedule - Ping WAHA": {
+    "Schedule": {
       "main": [
         [
           {
-            "node": "01 - CONFIG BASE",
+            "node": "Ping WAHA",
             "type": "main",
             "index": 0
           }
         ]
-      ]
-    },
-    "01 - CONFIG BASE": {
-      "main": [
-        [
-          {
-            "node": "02 - Ping WAHA API",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "02 - Ping WAHA API": {
-      "main": [
-        [
-          {
-            "node": "03 - Avaliar Ping",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "03 - Avaliar Ping": {
-      "main": [
-        [
-          {
-            "node": "04 - IF Ping Falhou?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "04 - IF Ping Falhou?": {
-      "main": [
-        [
-          {
-            "node": "05 - Telegram Avisar Ping Falhou",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        []
       ]
     }
   },
