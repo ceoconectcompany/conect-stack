@@ -5,7 +5,7 @@ export DEBIAN_FRONTEND=noninteractive
 
 ROOT_DIR="${ROOT_DIR:-/opt/conect-stack}"
 REPO_URL="${REPO_URL:-https://github.com/ceoconectcompany/conect-stack.git}"
-N8N_CONTAINER="${N8N_CONTAINER:-conectstack-n8n-1}"
+N8N_CONTAINER="${N8N_CONTAINER:-conect-stack-n8n-1}"
 
 clear
 
