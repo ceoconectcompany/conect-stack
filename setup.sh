@@ -9,16 +9,16 @@ PROJECT_NAME="conect-stack"
 clear || true
 
 banner() {
-  echo "=================================================="
-  echo "███████╗███╗   ██╗███████╗ ██████╗     ██████╗ ███████╗██╗   ██╗"
-  echo "██╔════╝████╗  ██║╚══███╔╝██╔═══██╗    ██╔══██╗██╔════╝██║   ██║"
-  echo "█████╗  ██╔██╗ ██║  ███╔╝ ██║   ██║    ██║  ██║█████╗  ██║   ██║"
-  echo "██╔══╝  ██║╚██╗██║ ███╔╝  ██║   ██║    ██║  ██║██╔══╝  ╚██╗ ██╔╝"
-  echo "███████╗██║ ╚████║███████╗╚██████╔╝    ██████╔╝███████╗ ╚████╔╝"
-  echo "╚══════╝╚═╝  ╚═══╝╚══════╝ ╚═════╝     ╚═════╝ ╚══════╝  ╚═══╝"
-  echo "=================================================="
-  echo "🔥 CONECT STACK INSTALLER — ENZO DEV 🔥"
-  echo "=================================================="
+  echo -e "\e[95m==================================================\e[0m"
+  echo -e "\e[91m███████╗███╗   ██╗███████╗ ██████╗     ██████╗ ███████╗██╗   ██╗\e[0m"
+  echo -e "\e[93m██╔════╝████╗  ██║╚══███╔╝██╔═══██╗    ██╔══██╗██╔════╝██║   ██║\e[0m"
+  echo -e "\e[92m█████╗  ██╔██╗ ██║  ███╔╝ ██║   ██║    ██║  ██║█████╗  ██║   ██║\e[0m"
+  echo -e "\e[96m██╔══╝  ██║╚██╗██║ ███╔╝  ██║   ██║    ██║  ██║██╔══╝  ╚██╗ ██╔╝\e[0m"
+  echo -e "\e[94m███████╗██║ ╚████║███████╗╚██████╔╝    ██████╔╝███████╗ ╚████╔╝\e[0m"
+  echo -e "\e[95m╚══════╝╚═╝  ╚═══╝╚══════╝ ╚═════╝     ╚═════╝ ╚══════╝  ╚═══╝\e[0m"
+  echo -e "\e[95m==================================================\e[0m"
+  echo -e "\e[92m🔥 CONECT STACK INSTALLER — ENZO DEV 🔥\e[0m"
+  echo -e "\e[95m==================================================\e[0m"
   echo ""
 }
 
@@ -26,21 +26,43 @@ matrix_loader() {
   local msg="$1"
   local pid="$2"
 
+  local cols rows chars colors
+  cols=$(tput cols 2>/dev/null || echo 80)
+  rows=$(tput lines 2>/dev/null || echo 24)
+  chars="01ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz#$%&@{}[]<>/\\|=+-_*"
+  colors=(31 32 33 34 35 36 91 92 93 94 95 96)
+
   clear || true
-  echo "🔥 ENZO DEV — ${msg} 🔥"
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo ""
+  tput civis 2>/dev/null || true
 
   while kill -0 "$pid" >/dev/null 2>&1; do
-    for i in {1..22}; do
-      echo "$(openssl rand -hex 24) | $(date +%H:%M:%S) | CONECT_STACK | WAHA | N8N | DOCKER | ENZO_DEV"
+    for drop in $(seq 1 35); do
+      col=$((RANDOM % cols))
+      color=${colors[$RANDOM % ${#colors[@]}]}
+
+      for row in $(seq 0 $((rows - 1))); do
+        char="${chars:RANDOM%${#chars}:1}"
+
+        tput cup "$row" "$col" 2>/dev/null || true
+        echo -ne "\e[${color}m${char}\e[0m"
+
+        if [ "$row" -gt 0 ]; then
+          tput cup "$((row - 1))" "$col" 2>/dev/null || true
+          echo -ne "\e[2m${char}\e[0m"
+        fi
+      done
     done
+
+    tput cup 0 0 2>/dev/null || true
+    echo -ne "\e[95m🔥 ENZO DEV — ${msg} 🔥\e[0m"
+    tput cup 1 0 2>/dev/null || true
+    echo -ne "\e[96m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\e[0m"
+
     sleep 0.08
-    clear || true
-    echo "🔥 ENZO DEV — ${msg} 🔥"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
   done
+
+  tput cnorm 2>/dev/null || true
+  clear || true
 
   wait "$pid"
 }
