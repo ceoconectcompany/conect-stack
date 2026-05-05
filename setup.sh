@@ -115,7 +115,7 @@ echo "📥 Atualizando workflows do GitHub..."
 
 rm -rf /tmp/conect-stack-repo
 
-git clone https://github.com/ceoconectcompany/conect-stack.git /tmp/conect-stack-repo
+git clone --depth 1 https://github.com/ceoconectcompany/conect-stack.git /tmp/conect-stack-repo
 
 rm -rf "$APP_DIR/templates"
 cp -r /tmp/conect-stack-repo/templates "$APP_DIR/"
@@ -139,8 +139,10 @@ run_with_matrix "ATUALIZANDO PACOTES" "/tmp/conect-apt-update.log" \
   apt update -y
 
 run_with_matrix "INSTALANDO DEPENDÊNCIAS" "/tmp/conect-deps.log" \
-  apt install -y ca-certificates curl gnupg lsb-release nano openssl git jq
-
+  bash -c 'for pkg in ca-certificates curl gnupg lsb-release nano openssl git jq; do
+    dpkg -s "$pkg" >/dev/null 2>&1 || apt install -y "$pkg"
+  done'
+  
 clear || true
 banner
 ok "Dependências instaladas"
@@ -215,21 +217,22 @@ EOF
 
 ok "docker-compose.yml criado"
 
-run_with_matrix "BAIXANDO IMAGENS DOCKER" "/tmp/conect-docker-pull.log" \
-  docker compose -p "$PROJECT_NAME" pull
-
 run_with_matrix "SUBINDO CONECT STACK" "/tmp/conect-stack-up.log" \
   docker compose -p "$PROJECT_NAME" up -d
 
 clear || true
 banner
+
 ok "Containers iniciados"
 
-sleep 5
+N8N_CONTAINER="$(docker ps --filter "name=${PROJECT_NAME}-n8n" --format '{{.Names}}' | head -n 1)"
+
+until docker exec "$N8N_CONTAINER" n8n -v >/dev/null 2>&1; do
+  echo "⏳ Aguardando n8n ficar pronto..."
+  sleep 2
+done
 
 step "Importando workflows base"
-
-N8N_CONTAINER="$(docker ps --filter "name=${PROJECT_NAME}-n8n" --format '{{.Names}}' | head -n 1)"
 WORKFLOW_PATH="./templates/base/workflows"
 
 if [ -z "$N8N_CONTAINER" ]; then
@@ -254,28 +257,28 @@ fi
 
 step "Aguardando serviços ficarem online"
 
-sleep 8
+sleep 3
 
-for i in {1..30}; do
+for i in {1..15}; do
   if curl -fsS http://localhost:5678 >/dev/null 2>&1; then
     ok "n8n online"
     break
   fi
 
-  if [ "$i" -eq 30 ]; then
+  if [ "$i" -eq 15 ]; then
     warn "n8n ainda não respondeu, mas o container pode estar iniciando"
   fi
 
   sleep 3
 done
 
-for i in {1..30}; do
+for i in {1..15}; do
   if curl -fsS http://localhost:3000 >/dev/null 2>&1; then
     ok "WAHA online"
     break
   fi
 
-  if [ "$i" -eq 30 ]; then
+  if [ "$i" -eq 15 ]; then
     warn "WAHA ainda não respondeu, mas o container pode estar iniciando"
   fi
 
