@@ -1,64 +1,115 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 
-echo "🚀 CONECT STACK SETUP MASTER"
+echo "🚀 CONECT STACK SETUP PRO"
+
+# ==============================
+# 🔓 BLINDAGEM APT (SEM ERRO)
+# ==============================
+echo "🛑 Parando APT automático..."
+systemctl stop apt-daily.timer || true
+systemctl stop apt-daily-upgrade.timer || true
+systemctl disable apt-daily.timer || true
+systemctl disable apt-daily-upgrade.timer || true
+
+systemctl stop apt-daily.service || true
+systemctl stop apt-daily-upgrade.service || true
+systemctl stop unattended-upgrades || true
+
+echo "⏳ Aguardando locks..."
+for i in {1..30}; do
+  if ! fuser /var/lib/apt/lists/lock >/dev/null 2>&1 && \
+     ! fuser /var/lib/dpkg/lock >/dev/null 2>&1; then
+    break
+  fi
+  sleep 2
+done
+
+dpkg --configure -a || true
 
 apt update -y
-apt install -y ca-certificates curl gnupg lsb-release git openssl
+apt install -y ca-certificates curl gnupg lsb-release git openssl jq python3
 
-# Instalar Docker oficial
+# ==============================
+# 🐳 DOCKER
+# ==============================
 if ! command -v docker >/dev/null 2>&1; then
   echo "🐳 Instalando Docker..."
   curl -fsSL https://get.docker.com | sh
-else
-  echo "✅ Docker já instalado."
 fi
 
 systemctl enable docker
 systemctl start docker
 
-# Instalar Docker Compose Plugin
-if ! docker compose version >/dev/null 2>&1; then
-  echo "📦 Instalando Docker Compose Plugin..."
-
-  install -m 0755 -d /etc/apt/keyrings
-
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
-    | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-
-  chmod a+r /etc/apt/keyrings/docker.gpg
-
-  echo \
-    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-    $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
-    > /etc/apt/sources.list.d/docker.list
-
-  apt update -y
-  apt install -y docker-compose-plugin
-else
-  echo "✅ Docker Compose já instalado."
-fi
-
-# Gerar API KEY automática
-WAHA_API_KEY=$(openssl rand -hex 32)
-
+# ==============================
+# 📦 REPO
+# ==============================
 ROOT_DIR="/opt/conect-stack"
 REPO_URL="https://github.com/ceoconectcompany/conect-stack.git"
 
-if [ ! -d "$ROOT_DIR/.git" ]; then
-  rm -rf "$ROOT_DIR"
-  git clone "$REPO_URL" "$ROOT_DIR"
-else
-  git -C "$ROOT_DIR" pull origin main
-fi
+rm -rf "$ROOT_DIR"
+git clone "$REPO_URL" "$ROOT_DIR"
 
 cd "$ROOT_DIR"
 
-# Criar docker-compose se não existir
-if [ ! -f "docker-compose.yml" ] && [ ! -f "compose.yml" ]; then
-  cat > docker-compose.yml <<EOF
+# ==============================
+# 🔐 CONFIG CLIENTE (INTERATIVO)
+# ==============================
+echo ""
+echo "🔧 CONFIGURAÇÃO DO CLIENTE"
+read -p "Nome do cliente: " CLIENT_NAME
+read -p "WAHA API KEY: " WAHA_KEY
+read -p "Telegram BOT TOKEN: " TELEGRAM_TOKEN
+read -p "Telegram CHAT ID: " TELEGRAM_CHAT
+
+# ==============================
+# 🧠 INJETAR CONFIG NOS JSON
+# ==============================
+echo "⚙️ Aplicando config nos workflows..."
+
+for f in templates/base/workflows/*.json; do
+  echo "👉 Ajustando $f"
+
+  jq \
+    --arg name "$CLIENT_NAME" \
+    --arg key "$WAHA_KEY" \
+    --arg ttoken "$TELEGRAM_TOKEN" \
+    --arg tchat "$TELEGRAM_CHAT" \
+    '
+    (.nodes[]?.parameters?.jsCode) |=
+    if . then
+      gsub("NOME_DO_CLIENTE"; $name) |
+      gsub("SUA_WAHA_API_KEY"; $key) |
+      gsub("SEU_BOT_TOKEN_TELEGRAM"; $ttoken) |
+      gsub("SEU_CHAT_ID_TELEGRAM"; $tchat)
+    else . end
+    ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+
+done
+
+# ==============================
+# 🧪 VALIDAR JSON
+# ==============================
+echo "🧪 Validando workflows..."
+
+for f in templates/base/workflows/*.json; do
+  echo "Validando: $f"
+  if ! python3 -m json.tool "$f" >/dev/null; then
+    echo "❌ JSON inválido em $f"
+    exit 1
+  fi
+done
+
+echo "✅ JSON OK"
+
+# ==============================
+# 🐳 DOCKER COMPOSE
+# ==============================
+WAHA_API_KEY="$WAHA_KEY"
+
+cat > docker-compose.yml <<EOF
 services:
   n8n:
     image: n8nio/n8n:latest
@@ -68,8 +119,6 @@ services:
     environment:
       - N8N_SECURE_COOKIE=false
       - N8N_HOST=0.0.0.0
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=http
       - TZ=America/Sao_Paulo
     volumes:
       - n8n_data:/home/node/.n8n
@@ -85,40 +134,45 @@ services:
 volumes:
   n8n_data:
 EOF
-fi
 
 docker compose up -d
 
-echo "⏳ Aguardando n8n subir..."
+# ==============================
+# ⏳ AGUARDAR N8N
+# ==============================
+echo "⏳ Aguardando n8n..."
 
 for i in {1..30}; do
   if curl -s http://localhost:5678 >/dev/null; then
-    echo "✅ n8n está online!"
+    echo "✅ n8n online"
     break
   fi
   sleep 2
 done
 
-# Rodar install.sh se existir
-if [ -f "install.sh" ]; then
-  echo "📦 Rodando install.sh..."
-  bash install.sh
-else
-  echo "⚠️ install.sh não encontrado. Pulando etapa extra."
-fi
+# ==============================
+# 📥 IMPORTAR WORKFLOWS (SAFE)
+# ==============================
+echo "📥 Importando workflows..."
 
-# Mostrar acesso
+docker cp templates/base/workflows/. conect-stack-n8n-1:/tmp/import/
+
+docker exec conect-stack-n8n-1 sh -c '
+for f in /tmp/import/*.json; do
+  echo "Importando: $f"
+  n8n import:workflow --input="$f" || echo "⚠️ Erro ignorado em $f"
+done
+'
+
+# ==============================
+# 🌐 FINAL
+# ==============================
 IP=$(curl -s ifconfig.me)
 
 echo ""
 echo "========================================"
-echo "🔥 CONECT STACK INSTALADA COM SUCESSO 🔥"
+echo "🔥 STACK PRONTA 🔥"
 echo "========================================"
-echo ""
 echo "🌐 n8n: http://$IP:5678"
 echo "🌐 WAHA: http://$IP:3000"
-echo ""
-echo "🔐 WAHA API KEY: $WAHA_API_KEY"
-echo ""
-echo "📦 Pasta: $ROOT_DIR"
-echo ""
+echo "========================================"
