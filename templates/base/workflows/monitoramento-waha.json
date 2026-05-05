@@ -1,0 +1,81 @@
+{
+"id": "base_monitoramento_waha",
+"name": "BASE - Monitoramento WAHA + Telegram",
+"nodes": [
+{
+"parameters": {
+"content": "## BASE — MONITORAMENTO WAHA + TELEGRAM\n\nCheca se a sessão está WORKING e avisa Telegram se cair.",
+"height": 220,
+"width": 460,
+"color": 4
+},
+"id": "3b47dc49-cd94-4bd9-bc09-d921752c2ee0",
+"name": "POST-IT - Objetivo",
+"type": "n8n-nodes-base.stickyNote",
+"typeVersion": 1,
+"position": [-900, -280]
+},
+{
+"parameters": {
+"rule": {
+"interval": [
+{
+"field": "minutes",
+"minutesInterval": 3
+}
+]
+}
+},
+"id": "7562c89a-170b-4c28-84d8-23ae5213ad8b",
+"name": "Schedule - Monitorar WAHA",
+"type": "n8n-nodes-base.scheduleTrigger",
+"typeVersion": 1.2,
+"position": [-900, 40]
+},
+{
+"parameters": {
+"jsCode": "// CONFIG BASE\nconst config = {\n  servidor: {\n    nome: "NOME_DO_CLIENTE_OU_VPS",\n    ambiente: "producao"\n  },\n  waha: {\n    base_url: "http://IP_DA_VPS:3000",\n    api_key: "SUA_WAHA_API_KEY",\n    session: "default"\n  },\n  telegram: {\n    bot_token: "SEU_BOT_TOKEN_TELEGRAM",\n    chat_id: "SEU_CHAT_ID_TELEGRAM"\n  },\n  monitoramento: {\n    timezone: "America/Campo_Grande",\n    alertar_restart_ok: false,\n    aguardar_pos_restart_segundos: 15\n  }\n};\nreturn [{ json: { config } }];"
+},
+"id": "ab070d76-1809-4a1b-9e45-bcffb4221e6c",
+"name": "01 - CONFIG BASE",
+"type": "n8n-nodes-base.code",
+"typeVersion": 2,
+"position": [-640, 40]
+},
+{
+"parameters": {
+"method": "GET",
+"url": "={{ $json.config.waha.base_url + '/api/sessions' }}",
+"sendHeaders": true,
+"headerParameters": {
+"parameters": [
+{
+"name": "X-Api-Key",
+"value": "={{ $json.config.waha.api_key }}"
+}
+]
+}
+},
+"id": "eae366b3-b03e-4c2a-95be-99972bf9c4d8",
+"name": "02 - Buscar Sessões WAHA",
+"type": "n8n-nodes-base.httpRequest",
+"typeVersion": 4.2,
+"position": [-380, 40]
+},
+{
+"parameters": {
+"jsCode": "const ok = true;\nreturn [{ json: { ...$json, working: ok, text: "teste" } }];"
+},
+"id": "108837b7-7f6f-4a91-94f4-12d81e774cdf",
+"name": "03 - Avaliar Status",
+"type": "n8n-nodes-base.code",
+"typeVersion": 2,
+"position": [-120, 40]
+}
+],
+"connections": {},
+"settings": {
+"executionOrder": "v1"
+},
+"active": false
+}
