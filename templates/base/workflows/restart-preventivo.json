@@ -1,22 +1,7 @@
 {
-  "name": "BASE - Restart WAHA Preventivo + Telegram",
+  "id": "base_restart_preventivo",
+  "name": "BASE - Restart Preventivo WAHA",
   "nodes": [
-    {
-      "parameters": {
-        "content": "## BASE — RESTART WAHA PREVENTIVO + TELEGRAM\n\nReinicia a sessão, valida se voltou WORKING e avisa Telegram se o reset falhar.",
-        "height": 240,
-        "width": 500,
-        "color": 4
-      },
-      "id": "4d194acb-8684-447b-9b06-211d80c1bfe7",
-      "name": "POST-IT - Objetivo",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        -900,
-        -300
-      ]
-    },
     {
       "parameters": {
         "rule": {
@@ -28,342 +13,35 @@
           ]
         }
       },
-      "id": "3b4a6e35-b8b7-4545-b7d1-8ee442ea0528",
-      "name": "Schedule - Restart Preventivo",
+      "id": "schedule_restart",
+      "name": "Schedule Restart",
       "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [
-        -900,
-        40
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// ===================================================\n// CONFIG BASE — MONITORAMENTO WAHA + TELEGRAM\n// Edite somente este node em cada cliente/servidor.\n// ===================================================\nconst config = {\n  servidor: {\n    nome: \"NOME_DO_CLIENTE_OU_VPS\",\n    ambiente: \"producao\"\n  },\n\n  waha: {\n    base_url: \"http://IP_DA_VPS:3000\",\n    api_key: \"SUA_WAHA_API_KEY\",\n    session: \"default\"\n  },\n\n  telegram: {\n    bot_token: \"SEU_BOT_TOKEN_TELEGRAM\",\n    chat_id: \"SEU_CHAT_ID_TELEGRAM\"\n  },\n\n  monitoramento: {\n    timezone: \"America/Campo_Grande\",\n    alertar_restart_ok: false,\n    aguardar_pos_restart_segundos: 15\n  }\n};\n\nreturn [{ json: { config, started_at: new Date().toISOString() } }];"
-      },
-      "id": "408e977a-ab1b-4e5d-8925-5ba3eb8316f8",
-      "name": "01 - CONFIG BASE",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -640,
-        40
-      ]
+      "typeVersion": 1,
+      "position": [-300, 0]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $json.config.waha.base_url + '/api/sessions/' + $json.config.waha.session + '/restart' }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Api-Key",
-              "value": "={{ $json.config.waha.api_key }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "options": {
-          "timeout": 15000
-        }
-      },
-      "id": "3ffe1205-df94-4d13-a6d1-0c03c9381522",
-      "name": "02 - Restart WAHA",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        -380,
-        40
-      ],
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "const previous = $item(0).$node[\"01 - CONFIG BASE\"].json;\nconst erro = $json.error || $json.message || $json.code || null;\nconst restart_ok = !erro;\nconst horario = new Date().toLocaleString(\"pt-BR\", { timeZone: previous.config.monitoramento.timezone });\nconst text = restart_ok ? \"\" : `🚨 RESTART WAHA FALHOU\n\nServidor: ${previous.config.servidor.nome}\nAmbiente: ${previous.config.servidor.ambiente}\nSession: ${previous.config.waha.session}\nWAHA: ${previous.config.waha.base_url}\nHorário: ${horario}\n\nResposta/erro:\n${JSON.stringify($json).slice(0, 1200)}\n\nAção: verificar Docker/WAHA manualmente.`;\nreturn [{ json: { ...previous, restart_response: $json, restart_ok, text } }];"
-      },
-      "id": "5a590707-f394-43f8-aef5-200a30765ee2",
-      "name": "03 - Avaliar Restart",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -120,
-        40
-      ]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 1
-          },
-          "conditions": [
-            {
-              "id": "restart-falhou",
-              "leftValue": "={{ $json.restart_ok }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "notEqual"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
+        "url": "http://IP_DA_VPS:3000/api/sessions/default/restart",
         "options": {}
       },
-      "id": "91ae8eea-dd47-4fda-9d91-a4b5cde008ae",
-      "name": "04 - IF Restart Falhou?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        140,
-        40
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ 'https://api.telegram.org/bot' + $json.config.telegram.bot_token + '/sendMessage' }}",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ chat_id: $json.config.telegram.chat_id, text: $json.text }) }}",
-        "options": {}
-      },
-      "id": "88921c8c-f556-479c-b674-ad0beb4822f6",
-      "name": "05A - Telegram Restart Falhou",
+      "id": "restart_waha",
+      "name": "Restart WAHA",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        420,
-        -120
-      ],
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "amount": "={{ $json.config.monitoramento.aguardar_pos_restart_segundos }}",
-        "unit": "seconds"
-      },
-      "id": "f088fb46-3c96-4ab5-96dc-c3a02bdb0c01",
-      "name": "05B - Aguardar Pós Restart",
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
-      "position": [
-        420,
-        100
-      ],
-      "webhookId": "a9927ce1-b8d0-416e-b374-b1ca67395ae3"
-    },
-    {
-      "parameters": {
-        "method": "GET",
-        "url": "={{ $json.config.waha.base_url + '/api/sessions' }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Api-Key",
-              "value": "={{ $json.config.waha.api_key }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "options": {
-          "timeout": 10000
-        }
-      },
-      "id": "147bba2a-e149-41bb-ae80-d1d174cad842",
-      "name": "06 - Verificar Depois do Restart",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        680,
-        100
-      ],
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "const previous = $item(0).$node[\"03 - Avaliar Restart\"].json;\nconst sessions = Array.isArray($json) ? $json : [];\nconst sessionName = previous.config.waha.session;\nconst sessao = sessions.find(s => String(s.name || s.id || s.session || \"\").toLowerCase() === String(sessionName).toLowerCase()) || sessions[0] || null;\nconst status = String(sessao?.status || sessao?.state || \"\").toUpperCase();\nconst erroHttp = $json.error || $json.message || $json.code || null;\nconst ok = !erroHttp && status === \"WORKING\";\nconst horario = new Date().toLocaleString(\"pt-BR\", { timeZone: previous.config.monitoramento.timezone });\nconst text = ok ? `✅ RESTART WAHA OK\n\nServidor: ${previous.config.servidor.nome}\nSession: ${sessionName}\nStatus: ${status}\nHorário: ${horario}` : `🚨 WAHA NÃO VOLTOU APÓS RESTART\n\nServidor: ${previous.config.servidor.nome}\nAmbiente: ${previous.config.servidor.ambiente}\nSession: ${sessionName}\nStatus encontrado: ${status || \"SEM_STATUS\"}\nWAHA: ${previous.config.waha.base_url}\nHorário: ${horario}\n\nResposta:\n${JSON.stringify($json).slice(0, 1200)}\n\nAção: intervenção manual necessária.`;\nreturn [{ json: { ...previous, status_pos_restart: status, voltou_working: ok, text } }];"
-      },
-      "id": "70dc06e2-0959-4534-b7c8-4d41153dca23",
-      "name": "07 - Avaliar Pós Restart",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        940,
-        100
-      ]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 1
-          },
-          "conditions": [
-            {
-              "id": "voltou-falhou",
-              "leftValue": "={{ $json.voltou_working }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "notEqual"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "8377eba5-8cf5-413c-b67b-b7f0e4785593",
-      "name": "08 - IF Não Voltou WORKING?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        1200,
-        100
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ 'https://api.telegram.org/bot' + $json.config.telegram.bot_token + '/sendMessage' }}",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ chat_id: $json.config.telegram.chat_id, text: $json.text }) }}",
-        "options": {}
-      },
-      "id": "33494907-5077-4cc2-9397-13b9501d03aa",
-      "name": "09 - Telegram Pós Restart Falhou",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1480,
-        20
-      ],
-      "onError": "continueRegularOutput"
+      "typeVersion": 4,
+      "position": [0, 0]
     }
   ],
   "connections": {
-    "Schedule - Restart Preventivo": {
+    "Schedule Restart": {
       "main": [
         [
           {
-            "node": "01 - CONFIG BASE",
+            "node": "Restart WAHA",
             "type": "main",
             "index": 0
           }
         ]
-      ]
-    },
-    "01 - CONFIG BASE": {
-      "main": [
-        [
-          {
-            "node": "02 - Restart WAHA",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "02 - Restart WAHA": {
-      "main": [
-        [
-          {
-            "node": "03 - Avaliar Restart",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "03 - Avaliar Restart": {
-      "main": [
-        [
-          {
-            "node": "04 - IF Restart Falhou?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "04 - IF Restart Falhou?": {
-      "main": [
-        [
-          {
-            "node": "05A - Telegram Restart Falhou",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "05B - Aguardar Pós Restart",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "05B - Aguardar Pós Restart": {
-      "main": [
-        [
-          {
-            "node": "06 - Verificar Depois do Restart",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "06 - Verificar Depois do Restart": {
-      "main": [
-        [
-          {
-            "node": "07 - Avaliar Pós Restart",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "07 - Avaliar Pós Restart": {
-      "main": [
-        [
-          {
-            "node": "08 - IF Não Voltou WORKING?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "08 - IF Não Voltou WORKING?": {
-      "main": [
-        [
-          {
-            "node": "09 - Telegram Pós Restart Falhou",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        []
       ]
     }
   },
