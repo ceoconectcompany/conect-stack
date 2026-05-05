@@ -111,6 +111,17 @@ step "Preparando servidor"
 mkdir -p "$APP_DIR"
 cd "$APP_DIR"
 
+echo "📥 Atualizando workflows do GitHub..."
+
+rm -rf /tmp/conect-stack-repo
+
+git clone https://github.com/ceoconectcompany/conect-stack.git /tmp/conect-stack-repo
+
+rm -rf "$APP_DIR/templates"
+cp -r /tmp/conect-stack-repo/templates "$APP_DIR/"
+
+rm -rf /tmp/conect-stack-repo
+
 ok "Diretório preparado em $APP_DIR"
 
 step "Liberando APT"
@@ -213,6 +224,31 @@ run_with_matrix "SUBINDO CONECT STACK" "/tmp/conect-stack-up.log" \
 clear || true
 banner
 ok "Containers iniciados"
+
+step "Importando workflows base"
+
+N8N_CONTAINER="$(docker ps --filter "name=${PROJECT_NAME}-n8n" --format '{{.Names}}' | head -n 1)"
+WORKFLOW_PATH="./templates/base/workflows"
+
+if [ -z "$N8N_CONTAINER" ]; then
+  warn "Container do n8n não encontrado. Pulando importação."
+elif [ ! -d "$WORKFLOW_PATH" ]; then
+  warn "Pasta de workflows não encontrada em $WORKFLOW_PATH. Pulando importação."
+else
+  echo "📂 Pasta encontrada: $WORKFLOW_PATH"
+  echo "🐳 Container n8n: $N8N_CONTAINER"
+
+  echo "🧪 Validando JSON dos workflows..."
+  find "$WORKFLOW_PATH" -name "*.json" -type f -print -exec jq empty {} \;
+
+  echo "📥 Copiando workflows para o container..."
+  docker cp "$WORKFLOW_PATH" "$N8N_CONTAINER:/tmp/workflows"
+
+  echo "⚙️ Importando workflows no n8n..."
+  docker exec "$N8N_CONTAINER" n8n import:workflow --separate --input=/tmp/workflows
+
+  ok "Workflows base importados"
+fi
 
 step "Aguardando serviços ficarem online"
 
