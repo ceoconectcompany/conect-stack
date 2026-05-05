@@ -225,6 +225,8 @@ clear || true
 banner
 ok "Containers iniciados"
 
+sleep 5
+
 step "Importando workflows base"
 
 N8N_CONTAINER="$(docker ps --filter "name=${PROJECT_NAME}-n8n" --format '{{.Names}}' | head -n 1)"
