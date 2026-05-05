@@ -1,81 +1,213 @@
 {
-"id": "base_monitoramento_waha",
-"name": "BASE - Monitoramento WAHA + Telegram",
-"nodes": [
-{
-"parameters": {
-"content": "## BASE — MONITORAMENTO WAHA + TELEGRAM\n\nCheca se a sessão está WORKING e avisa Telegram se cair.",
-"height": 220,
-"width": 460,
-"color": 4
-},
-"id": "3b47dc49-cd94-4bd9-bc09-d921752c2ee0",
-"name": "POST-IT - Objetivo",
-"type": "n8n-nodes-base.stickyNote",
-"typeVersion": 1,
-"position": [-900, -280]
-},
-{
-"parameters": {
-"rule": {
-"interval": [
-{
-"field": "minutes",
-"minutesInterval": 3
-}
-]
-}
-},
-"id": "7562c89a-170b-4c28-84d8-23ae5213ad8b",
-"name": "Schedule - Monitorar WAHA",
-"type": "n8n-nodes-base.scheduleTrigger",
-"typeVersion": 1.2,
-"position": [-900, 40]
-},
-{
-"parameters": {
-"jsCode": "// CONFIG BASE\nconst config = {\n  servidor: {\n    nome: "NOME_DO_CLIENTE_OU_VPS",\n    ambiente: "producao"\n  },\n  waha: {\n    base_url: "http://IP_DA_VPS:3000",\n    api_key: "SUA_WAHA_API_KEY",\n    session: "default"\n  },\n  telegram: {\n    bot_token: "SEU_BOT_TOKEN_TELEGRAM",\n    chat_id: "SEU_CHAT_ID_TELEGRAM"\n  },\n  monitoramento: {\n    timezone: "America/Campo_Grande",\n    alertar_restart_ok: false,\n    aguardar_pos_restart_segundos: 15\n  }\n};\nreturn [{ json: { config } }];"
-},
-"id": "ab070d76-1809-4a1b-9e45-bcffb4221e6c",
-"name": "01 - CONFIG BASE",
-"type": "n8n-nodes-base.code",
-"typeVersion": 2,
-"position": [-640, 40]
-},
-{
-"parameters": {
-"method": "GET",
-"url": "={{ $json.config.waha.base_url + '/api/sessions' }}",
-"sendHeaders": true,
-"headerParameters": {
-"parameters": [
-{
-"name": "X-Api-Key",
-"value": "={{ $json.config.waha.api_key }}"
-}
-]
-}
-},
-"id": "eae366b3-b03e-4c2a-95be-99972bf9c4d8",
-"name": "02 - Buscar Sessões WAHA",
-"type": "n8n-nodes-base.httpRequest",
-"typeVersion": 4.2,
-"position": [-380, 40]
-},
-{
-"parameters": {
-"jsCode": "const ok = true;\nreturn [{ json: { ...$json, working: ok, text: "teste" } }];"
-},
-"id": "108837b7-7f6f-4a91-94f4-12d81e774cdf",
-"name": "03 - Avaliar Status",
-"type": "n8n-nodes-base.code",
-"typeVersion": 2,
-"position": [-120, 40]
-}
-],
-"connections": {},
-"settings": {
-"executionOrder": "v1"
-},
-"active": false
+  "id": "base_monitoramento_waha",
+  "name": "BASE - Monitoramento WAHA + Telegram",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## BASE — MONITORAMENTO WAHA + TELEGRAM\n\nCheca se a sessão WAHA está WORKING. Se cair, avisa no Telegram.",
+        "height": 220,
+        "width": 500,
+        "color": 4
+      },
+      "id": "postit_objetivo_monitoramento",
+      "name": "POST-IT - Objetivo",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -920,
+        -260
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 3
+            }
+          ]
+        }
+      },
+      "id": "schedule_monitorar_waha",
+      "name": "Schedule - Monitorar WAHA",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -900,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===================================================\n// CONFIG BASE — GESTÃO PESSOAL WAHA + TELEGRAM\n// Edite somente este node por cliente/servidor.\n// ===================================================\nconst config = {\n  cliente_nome: \"NOME_DO_CLIENTE\",\n  telegram_user_nome: \"SEU_NOME_OU_RESPONSAVEL\",\n\n  waha: {\n    base_url: \"http://IP_DA_VPS:3000\",\n    api_key: \"SUA_WAHA_API_KEY\",\n    session: \"default\"\n  },\n\n  telegram: {\n    bot_token: \"SEU_BOT_TOKEN_TELEGRAM\",\n    chat_id: \"SEU_CHAT_ID_TELEGRAM\"\n  },\n\n  monitoramento: {\n    timezone: \"America/Campo_Grande\",\n    alertar_quando_ok: false,\n    aguardar_pos_restart_segundos: 15\n  }\n};\n\nreturn [{ json: { config, started_at: new Date().toISOString() } }];"
+      },
+      "id": "01_config_base",
+      "name": "01 - CONFIG BASE",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -640,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.config.waha.base_url + '/api/sessions' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{ $json.config.waha.api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "buscar_sessoes_waha",
+      "name": "02 - Buscar Sessões WAHA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -380,
+        40
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const previous = $item(0).$node[\"01 - CONFIG BASE\"].json;\nconst config = previous.config;\n\nconst response = $json;\nconst isError = !!response.error || !!response.message && !!response.statusCode;\n\nlet sessions = [];\nif (Array.isArray(response)) {\n  sessions = response;\n} else if (Array.isArray(response.data)) {\n  sessions = response.data;\n} else if (response.name || response.id || response.session) {\n  sessions = [response];\n}\n\nconst sessionName = String(config.waha.session || \"default\").toLowerCase();\nconst sessao = sessions.find(s => String(s.name || s.id || s.session || \"\").toLowerCase() === sessionName) || sessions[0] || null;\nconst status = String(sessao?.status || sessao?.state || \"\").toUpperCase();\nconst working = !isError && status === \"WORKING\";\n\nconst horario = new Date().toLocaleString(\"pt-BR\", { timeZone: config.monitoramento.timezone });\n\nconst text = working\n  ? `✅ WAHA OK\\n\\nCliente: ${config.cliente_nome}\\nResponsável: ${config.telegram_user_nome}\\nSessão: ${config.waha.session}\\nStatus: ${status}\\nHorário: ${horario}`\n  : `🚨 WAHA CAIU / NÃO ESTÁ WORKING\\n\\nCliente: ${config.cliente_nome}\\nResponsável: ${config.telegram_user_nome}\\nSessão: ${config.waha.session}\\nStatus encontrado: ${status || \"SEM_STATUS\"}\\nWAHA: ${config.waha.base_url}\\nHorário: ${horario}\\n\\nResposta resumida:\\n${JSON.stringify(response).slice(0, 1200)}\\n\\nAção: verificar sessão no painel WAHA ou rodar restart.`;\n\nreturn [{ json: { ...previous, sessao, status, working, text } }];"
+      },
+      "id": "avaliar_status_sessao",
+      "name": "03 - Avaliar Status Sessão",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -120,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "sessao-nao-working",
+              "leftValue": "={{ $json.working }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEqual"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if_sessao_caiu",
+      "name": "04 - IF Sessão Caiu?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        140,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $json.config.telegram.bot_token + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.config.telegram.chat_id, text: $json.text }) }}",
+        "options": {}
+      },
+      "id": "05___telegram_avisar_waha_caiu",
+      "name": "05 - Telegram Avisar WAHA Caiu",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        420,
+        -40
+      ],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Schedule - Monitorar WAHA": {
+      "main": [
+        [
+          {
+            "node": "01 - CONFIG BASE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01 - CONFIG BASE": {
+      "main": [
+        [
+          {
+            "node": "02 - Buscar Sessões WAHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 - Buscar Sessões WAHA": {
+      "main": [
+        [
+          {
+            "node": "03 - Avaliar Status Sessão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 - Avaliar Status Sessão": {
+      "main": [
+        [
+          {
+            "node": "04 - IF Sessão Caiu?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 - IF Sessão Caiu?": {
+      "main": [
+        [
+          {
+            "node": "05 - Telegram Avisar WAHA Caiu",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
 }
