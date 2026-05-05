@@ -11,8 +11,43 @@ N8N_CONTAINER="conect-stack-n8n-1"
 WAHA_API_KEY="$(openssl rand -hex 32)"
 
 echo "🛑 Liberando APT..."
-systemctl stop apt-daily.timer apt-daily-upgrade.timer apt-daily.service apt-daily-upgrade.service unattended-upgrades 2>/dev/null || true
-systemctl disable apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
+
+systemctl stop apt-daily.timer 2>/dev/null || true
+systemctl stop apt-daily-upgrade.timer 2>/dev/null || true
+systemctl disable apt-daily.timer 2>/dev/null || true
+systemctl disable apt-daily-upgrade.timer 2>/dev/null || true
+
+systemctl stop apt-daily.service 2>/dev/null || true
+systemctl stop apt-daily-upgrade.service 2>/dev/null || true
+systemctl stop unattended-upgrades 2>/dev/null || true
+
+echo "⏳ Aguardando locks do APT..."
+
+for i in {1..90}; do
+  LOCKED=0
+
+  fuser /var/lib/apt/lists/lock >/dev/null 2>&1 && LOCKED=1
+  fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 && LOCKED=1
+  fuser /var/lib/dpkg/lock >/dev/null 2>&1 && LOCKED=1
+  fuser /var/cache/apt/archives/lock >/dev/null 2>&1 && LOCKED=1
+
+  if [ "$LOCKED" -eq 0 ]; then
+    echo "✅ APT liberado"
+    break
+  fi
+
+  echo "APT ocupado... aguardando $i/90"
+  sleep 2
+
+  if [ "$i" -eq 90 ]; then
+    echo "⚠️ APT ainda ocupado. Tentando finalizar processos apt..."
+    pkill -f "apt-get" || true
+    pkill -f "apt" || true
+    pkill -f "unattended-upgrade" || true
+    sleep 3
+  fi
+done
+
 dpkg --configure -a || true
 
 apt update -y
@@ -21,6 +56,8 @@ apt install -y ca-certificates curl gnupg git openssl python3 jq
 if ! command -v docker >/dev/null 2>&1; then
   echo "🐳 Instalando Docker..."
   curl -fsSL https://get.docker.com | sh
+else
+  echo "✅ Docker já instalado"
 fi
 
 systemctl enable docker
@@ -75,13 +112,18 @@ done
 
 WF_DIR="$ROOT_DIR/templates/base/workflows"
 
+if [ ! -d "$WF_DIR" ]; then
+  echo "❌ Pasta de workflows não encontrada: $WF_DIR"
+  exit 1
+fi
+
 echo "🧪 Validando workflows..."
 for f in "$WF_DIR"/*.json; do
   echo "Validando: $(basename "$f")"
   python3 -m json.tool "$f" >/dev/null
 done
 
-echo "📥 Importando 3 workflows base..."
+echo "📥 Importando workflows base..."
 docker exec "$N8N_CONTAINER" sh -c "rm -rf /tmp/import && mkdir -p /tmp/import"
 docker cp "$WF_DIR/." "$N8N_CONTAINER:/tmp/import/"
 
@@ -104,7 +146,7 @@ echo "🔐 WAHA API KEY:"
 echo "$WAHA_API_KEY"
 echo ""
 echo "📦 Workflows importados:"
-echo "- ping-waha"
 echo "- monitoramento-waha"
+echo "- ping-waha"
 echo "- restart-preventivo"
 echo "========================================"
