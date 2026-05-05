@@ -22,6 +22,23 @@ banner() {
   echo ""
 }
 
+typewriter() {
+  local text="$1"
+  local delay="${2:-0.012}"
+  for ((i=0; i<${#text}; i++)); do
+    echo -ne "${text:$i:1}"
+    sleep "$delay"
+  done
+  echo ""
+}
+
+beep_success() {
+  for i in {1..3}; do
+    printf '\a'
+    sleep 0.15
+  done
+}
+
 matrix_loader() {
   local msg="$1"
   local pid="$2"
@@ -91,17 +108,17 @@ run_with_matrix() {
 
 step() {
   echo ""
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo "🚀 $1"
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo -e "\e[95m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\e[0m"
+  echo -e "\e[92m🚀 $1\e[0m"
+  echo -e "\e[95m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\e[0m"
 }
 
 ok() {
-  echo "✅ $1"
+  echo -e "\e[92m✅ $1\e[0m"
 }
 
 warn() {
-  echo "⚠️  $1"
+  echo -e "\e[93m⚠️  $1\e[0m"
 }
 
 banner
@@ -111,7 +128,7 @@ step "Preparando servidor"
 mkdir -p "$APP_DIR"
 cd "$APP_DIR"
 
-echo "📥 Atualizando workflows do GitHub..."
+echo -e "\e[92m📥 Atualizando workflows do GitHub...\e[0m"
 
 rm -rf /tmp/conect-stack-repo
 
@@ -228,7 +245,7 @@ ok "Containers iniciados"
 N8N_CONTAINER="$(docker ps --filter "name=${PROJECT_NAME}-n8n" --format '{{.Names}}' | head -n 1)"
 
 until docker exec "$N8N_CONTAINER" n8n -v >/dev/null 2>&1; do
-  echo "⏳ Aguardando n8n ficar pronto..."
+  echo -e "\e[95m⏳ Aguardando n8n ficar pronto...\e[0m"
   sleep 2
 done
 
@@ -240,16 +257,16 @@ if [ -z "$N8N_CONTAINER" ]; then
 elif [ ! -d "$WORKFLOW_PATH" ]; then
   warn "Pasta de workflows não encontrada em $WORKFLOW_PATH. Pulando importação."
 else
-  echo "📂 Pasta encontrada: $WORKFLOW_PATH"
-  echo "🐳 Container n8n: $N8N_CONTAINER"
+  echo -e "\e[92m📂 Pasta encontrada: \e[95m$WORKFLOW_PATH\e[0m"
+  echo -e "\e[92m🐳 Container n8n: \e[95m$N8N_CONTAINER\e[0m"
 
-  echo "🧪 Validando JSON dos workflows..."
+  echo -e "\e[92m🧪 Validando JSON dos workflows...\e[0m"
   find "$WORKFLOW_PATH" -name "*.json" -type f -print -exec jq empty {} \;
 
-  echo "📥 Copiando workflows para o container..."
+  echo -e "\e[92m📥 Copiando workflows para o container...\e[0m"
   docker cp "$WORKFLOW_PATH" "$N8N_CONTAINER:/tmp/workflows"
 
-  echo "⚙️ Importando workflows no n8n..."
+  echo -e "\e[92m⚙️ Importando workflows no n8n...\e[0m"
   docker exec "$N8N_CONTAINER" n8n import:workflow --separate --input=/tmp/workflows
 
   ok "Workflows base importados"
@@ -297,38 +314,54 @@ if [ -z "$IPV4" ]; then
   IPV4="SEU_IP_V4_DA_VPS"
 fi
 
+beep_success
+
 clear || true
 banner
 
-echo "🔥 CONECT STACK INSTALADA COM SUCESSO 🔥"
+typewriter "\e[95m🔥 CONECT STACK INSTALADA COM SUCESSO 🔥\e[0m" 0.01
+sleep 0.2
 echo ""
-echo "🌐 n8n:"
-echo "http://${IPV4}:5678"
+
+typewriter "\e[92m🌐 n8n:\e[0m" 0.01
+typewriter "\e[95mhttp://${IPV4}:5678\e[0m" 0.008
+sleep 0.2
 echo ""
-echo "🌐 WAHA:"
-echo "http://${IPV4}:3000"
+
+typewriter "\e[92m🌐 WAHA:\e[0m" 0.01
+typewriter "\e[95mhttp://${IPV4}:3000\e[0m" 0.008
+sleep 0.2
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "🔐 ACESSO N8N"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "👤 Login:    ${N8N_USER}"
-echo "🔑 Password: ${N8N_PASSWORD}"
+
+typewriter "\e[95m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\e[0m" 0.002
+typewriter "\e[92m🔐 ACESSO N8N\e[0m" 0.01
+typewriter "\e[95m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\e[0m" 0.002
+typewriter "\e[92m👤 Login:    \e[95m${N8N_USER}\e[0m" 0.008
+typewriter "\e[92m🔑 Password: \e[95m${N8N_PASSWORD}\e[0m" 0.008
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "🔐 ACESSO WAHA DASHBOARD"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "👤 Login:    ${WAHA_USER}"
-echo "🔑 Password: ${WAHA_PASSWORD}"
+
+typewriter "\e[95m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\e[0m" 0.002
+typewriter "\e[92m🔐 ACESSO WAHA DASHBOARD\e[0m" 0.01
+typewriter "\e[95m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\e[0m" 0.002
+typewriter "\e[92m👤 Login:    \e[95m${WAHA_USER}\e[0m" 0.008
+typewriter "\e[92m🔑 Password: \e[95m${WAHA_PASSWORD}\e[0m" 0.008
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "🔑 WAHA API KEY"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "${WAHA_API_KEY}"
+
+typewriter "\e[95m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\e[0m" 0.002
+typewriter "\e[92m🔑 WAHA API KEY\e[0m" 0.01
+typewriter "\e[95m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\e[0m" 0.002
+typewriter "\e[95m${WAHA_API_KEY}\e[0m" 0.004
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "🐳 CONTAINERS"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+typewriter "\e[95m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\e[0m" 0.002
+typewriter "\e[92m🐳 CONTAINERS\e[0m" 0.01
+typewriter "\e[95m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\e[0m" 0.002
+
+echo -e "\e[95m"
 docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+echo -e "\e[0m"
+
 echo ""
-echo "✅ Finalizado por ENZO DEV"
-echo "=================================================="
+typewriter "\e[92m✅ Finalizado por ENZO DEV\e[0m" 0.01
+typewriter "\e[95m==================================================\e[0m" 0.002
+beep_success
