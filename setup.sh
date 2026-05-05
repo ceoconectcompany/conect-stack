@@ -25,8 +25,12 @@ banner() {
 typewriter() {
   local text="$1"
   local delay="${2:-0.012}"
+
+  # interpreta ANSI corretamente
+  text=$(printf "%b" "$text")
+
   for ((i=0; i<${#text}; i++)); do
-    echo -ne "${text:$i:1}"
+    printf "%b" "${text:$i:1}"
     sleep "$delay"
   done
   echo ""
