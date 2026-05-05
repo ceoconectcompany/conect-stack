@@ -1,5 +1,0 @@
-{
-  "id": "base",
-  "nome": "Base",
-  "descricao": "Workflows base de monitoramento WAHA, ping e reset preventivo para criar novos nichos do zero."
-}
