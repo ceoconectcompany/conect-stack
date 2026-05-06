@@ -369,3 +369,53 @@ echo ""
 typewriter "\e[92m✅ Finalizado por ENZO DEV\e[0m" 0.01
 typewriter "\e[95m==================================================\e[0m" 0.002
 beep_success
+
+# ==============================
+# 🔥 ENZO DEV PANEL AUTOMÁTICO
+# ==============================
+
+cat > /root/painel.sh << 'EOF'
+#!/bin/bash
+
+IP=$(curl -4 -s https://api.ipify.org || hostname -I | awk '{print $1}')
+
+N8N_CONTAINER=$(docker ps --filter "name=n8n" --format '{{.Names}}' | head -n 1)
+WAHA_CONTAINER=$(docker ps --filter "name=waha" --format '{{.Names}}' | head -n 1)
+
+N8N_USER=$(docker exec "$N8N_CONTAINER" printenv N8N_BASIC_AUTH_USER 2>/dev/null)
+N8N_PASS=$(docker exec "$N8N_CONTAINER" printenv N8N_BASIC_AUTH_PASSWORD 2>/dev/null)
+
+WAHA_KEY=$(docker inspect "$WAHA_CONTAINER" 2>/dev/null | grep WAHA_API_KEY | head -1 | cut -d '"' -f4)
+
+clear
+
+echo "========================================"
+echo "🔥 ENZO DEV PANEL 🔥"
+echo "========================================"
+echo ""
+echo "🌐 n8n:"
+echo "http://$IP:5678"
+echo ""
+echo "🌐 WAHA:"
+echo "http://$IP:3000"
+echo ""
+echo "========================================"
+echo "🔐 N8N LOGIN"
+echo "========================================"
+echo "User: ${N8N_USER:-admin}"
+echo "Pass: ${N8N_PASS:-(ver no container)}"
+echo ""
+echo "========================================"
+echo "🔐 WAHA API KEY"
+echo "========================================"
+echo "${WAHA_KEY:-(não encontrada)}"
+echo ""
+echo "========================================"
+EOF
+
+chmod +x /root/painel.sh
+
+# adicionar no bashrc se ainda não existir
+grep -qxF "/root/painel.sh" /root/.bashrc || echo "/root/painel.sh" >> /root/.bashrc
+
+echo "🔥 ENZO DEV PANEL INSTALADO COM SUCESSO 🔥"
