@@ -248,10 +248,26 @@ ok "Containers iniciados"
 
 N8N_CONTAINER="$(docker ps --filter "name=${PROJECT_NAME}-n8n" --format '{{.Names}}' | head -n 1)"
 
-until docker exec "$N8N_CONTAINER" n8n -v >/dev/null 2>&1; do
-  echo -e "\e[95m⏳ Aguardando n8n ficar pronto...\e[0m"
-  sleep 2
+echo -e "\e[95m⏳ Aguardando n8n finalizar migrations e liberar banco...\e[0m"
+
+for i in {1..60}; do
+
+  if docker logs "$N8N_CONTAINER" 2>&1 | grep -qi "There was an error running database migrations"; then
+    warn "Migration travada detectada. Reiniciando n8n..."
+    docker restart "$N8N_CONTAINER" >/dev/null 2>&1 || true
+    sleep 20
+  fi
+
+  if curl -fsS http://127.0.0.1:5678/healthz >/dev/null 2>&1; then
+    ok "n8n pronto"
+    break
+  fi
+
+  echo -e "\e[95m⏳ Aguardando n8n... tentativa $i/60\e[0m"
+  sleep 5
 done
+
+sleep 10
 
 step "Importando workflows base"
 WORKFLOW_PATH="./templates/base/workflows"
